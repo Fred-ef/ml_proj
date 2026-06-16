@@ -1,0 +1,6 @@
+# Type A project: only numerical / plotting / IO libraries are allowed.
+# NO ML frameworks (PyTorch, TensorFlow, Keras, scikit-learn) — they would
+# make this a Type B project (GUIDA §1.1).
+numpy>=1.26
+matplotlib>=3.8
+pandas>=2.1          # CSV I/O only (optional; numpy can do it too)
