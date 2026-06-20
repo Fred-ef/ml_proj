@@ -31,6 +31,16 @@ class MSE(Loss):
 
     name = "mse"
 
+    def value(self, y_pred: np.ndarray, y_true: np.ndarray) -> float:
+        # calculate the mean squared error 
+        # MSE = (1/n) * sum((y_pred - y_true)^2)
+        return np.mean((y_pred - y_true)**2)
+
+    def gradient(self, y_pred: np.ndarray, y_true: np.ndarray) -> np.ndarray:
+        # The exact derivative of np.mean((y_pred - y_true)**2)
+        # d MSE / d y_pred = (2/n) * (y_pred - y_true)
+        return 2.0 * (y_pred - y_true) / y_pred.size
+
 
 class CrossEntropy(Loss):
     """Binary cross-entropy (optional: MONK classification, LMS vs CE comparison)."""
