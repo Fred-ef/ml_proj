@@ -1,10 +1,7 @@
 """K-fold cross-validation (and simple hold-out).
 
-Used to estimate validation MEE/MSE for each hyperparameter configuration
-during model selection (GUIDA §3.1). Returns per-fold metrics so the report
-can show mean +/- std.
-
-To be implemented in F4.
+Estimates validation MEE/MSE for each hyperparameter configuration during model
+selection. Returns per-fold metrics so we can report mean +/- std.
 """
 
 from __future__ import annotations

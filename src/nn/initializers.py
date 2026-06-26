@@ -1,22 +1,11 @@
-"""Weight initialization strategies for Neural Networks.
+"""Weight initialization strategies.
 
-Proper weight initialization is crucial for training deep neural networks.
-It helps break the symmetry between neurons (preventing them from learning 
-the same features) and keeps the variance of activations and gradients 
-stable across layers, mitigating the vanishing or exploding gradient problems.
-
-This module provides three strategies:
-    - Uniform: Basic initialization in a given range. Useful when specific 
-      small constraints are needed.
-    - Glorot (Xavier): Maintains variance for Tanh and Sigmoid activations.
-    - He: Maintains variance for ReLU activations by accounting for the 
-      rectifier's property of zeroing half the values.
-
-For MONK the spec requires a *very small* weight range (see GUIDA §1.4 / FAQ).
-For the CUP, comparing init schemes (Glorot/He) can be one of the "extra"
-investigations for a 3-person group.
-
-To be implemented in F1.
+Proper initialization breaks the symmetry between neurons and keeps the variance
+of activations and gradients stable across layers, mitigating vanishing/exploding
+gradients. Three strategies:
+    - Uniform: symmetric range [-scale, scale]; use a small scale for MONK.
+    - Glorot (Xavier): keeps variance for Tanh/Sigmoid activations.
+    - He: keeps variance for ReLU activations.
 """
 
 from __future__ import annotations

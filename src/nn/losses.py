@@ -1,14 +1,11 @@
 """Loss functions used for training.
 
-Training is done with MSE (LMS), which is the loss whose gradient drives
-backpropagation. MEE is the *reporting/competition* metric for the CUP and
-lives in ``utils.metrics`` (it is not used as a training loss here).
+Training uses MSE, whose gradient drives backpropagation. MEE is a reporting
+metric and lives in ``utils.metrics`` (not used as a training loss here).
 
 Each loss exposes:
     - ``value(y_pred, y_true)`` -> scalar
     - ``gradient(y_pred, y_true)`` -> d loss / d y_pred  (same shape as y_pred)
-
-To be implemented in F2.
 """
 
 from __future__ import annotations

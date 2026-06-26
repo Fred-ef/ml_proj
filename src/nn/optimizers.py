@@ -1,25 +1,15 @@
 """Optimizers (weight update rules).
 
-Stochastic Gradient Descent (SGD) is the core algorithm used to minimize the 
-loss function by iteratively adjusting the network's weights in the opposite 
-direction of the gradient. 
+Stochastic Gradient Descent (SGD) minimizes the loss by adjusting the weights in
+the opposite direction of the gradient. With momentum, the update (with the L2
+weight decay already included in the gradient) is:
 
-SGD with momentum is **mandatory** (GUIDA §1.2). Momentum is a technique that 
-accelerates SGD and dampens oscillations. It works analogously to a ball rolling 
-down a hill: it accumulates velocity in directions where the gradient consistently 
-points, while smoothing out noisy, zig-zagging gradients (such as in ravines). 
-The classic update (assuming L2 weight decay is included in the gradient) is:
-
-    v = momentum * v - lr * (grad + reg_grad)
+    v = momentum * v - lr * grad
     W = W + v
 
-Optional variants are valuable "extra" investigations for a 3-person group
-(GUIDA §1.3, §8): Nesterov momentum, RProp, QuickProp.
-
-An optimizer holds per-parameter state (e.g. velocity) and updates parameters
-in place given their gradients.
-
-To be implemented in F2 (SGD) and later for the variants.
+momentum accumulates velocity along consistent gradient directions and dampens
+oscillations. An optimizer holds its own per-parameter state (e.g. velocity) and
+updates the parameters in place.
 """
 
 from __future__ import annotations

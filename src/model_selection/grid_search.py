@@ -1,11 +1,8 @@
-"""Grid search over hyperparameters (MANDATORY, GUIDA §1.7).
+"""Grid search over hyperparameters.
 
 Sweeps a parameter grid (lr, momentum, lambda, #hidden layers, #units,
 activation, epochs, ...), evaluates each config via k-fold CV, and returns the
-ranked results so the report can show the significant cases and justify the
-final-model choice.
-
-To be implemented in F4/F5.
+ranked results.
 """
 
 from __future__ import annotations

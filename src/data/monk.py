@@ -1,15 +1,11 @@
 """MONK datasets: loading and 1-of-k (one-hot) encoding.
 
-The 6 categorical attributes have 3, 3, 2, 3, 4 and 2 distinct values respectively;
-one-hot encoding them yields **17 input units** (GUIDA §1.4). Targets are
-binary (sigmoid output + 0.5 threshold for accuracy).
+The 6 categorical attributes have 3, 3, 2, 3, 4 and 2 distinct values; one-hot
+encoding them yields 17 input units. Targets are binary (sigmoid output + 0.5
+threshold for accuracy).
 
-Expected raw files in ``data/`` (download from Moodle / UCI):
-    monks-1.train, monks-1.test, monks-2.*, monks-3.*
-
-UCI row format (space separated): ``class a1 a2 a3 a4 a5 a6 id``.
-
-To be implemented in F3.
+Expected raw files in ``data/``: monks-1.train, monks-1.test, monks-2.*, monks-3.*
+Row format (space separated): ``class a1 a2 a3 a4 a5 a6 id``.
 """
 
 from __future__ import annotations

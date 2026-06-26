@@ -1,14 +1,8 @@
-"""Weight regularizers.
+"""Weight regularizers: L2 (Tikhonov, norm-2) and L1 (norm-1).
 
-L2 (Tikhonov, norm-2 penalty) is **mandatory** for the NN (GUIDA §1.2).
-L1 (norm-1 penalty) is optional and makes a good "extra" comparison (§8).
-
-A regularizer contributes:
-    - a penalty term to the reported loss (NOTE: the error reported in the
-      result tables must be *without* the penalty term, GUIDA §1.6), and
-    - a term to the gradient used in the weight update.
-
-To be implemented in F2.
+A regularizer contributes a penalty term and a term added to the weight
+gradient. The penalty is for logging only: the error reported in the result
+tables is without it.
 """
 
 from __future__ import annotations

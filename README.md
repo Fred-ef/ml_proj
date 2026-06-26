@@ -1,9 +1,9 @@
-# ML 2025 Project — Type A (Neural Network from scratch)
+# ML 2026 Project — Type A (Neural Network from scratch)
 
 Final project for the Machine Learning course (A. Micheli, University of Pisa).
 **Type A:** a Multilayer Perceptron simulator with backpropagation, momentum and
 L2 regularization, implemented from scratch on top of NumPy only — applied to the
-**MONK** benchmarks and to the **ML-CUP 2025** competition.
+**MONK** benchmarks and to the **ML-CUP 2026** competition.
 
 > ⚠️ Type A constraint: the model, training algorithm and validation are written
 > by us, independently of any framework. Only numerical/plotting/IO libraries are

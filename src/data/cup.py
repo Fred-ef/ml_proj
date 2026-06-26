@@ -1,16 +1,13 @@
-"""ML-CUP 2025: loading, splitting and (optional) target scaling.
+"""ML-CUP 2026: loading, splitting and (optional) target scaling.
 
 Training file ``ML-CUP25-TR.csv``: 500 rows, columns =
     id, x1..x12 (continuous inputs), t1..t4 (continuous targets).
 Blind test ``ML-CUP25-TS.csv``: 1000 rows, id + x1..x12 (no targets).
 Both have a few header comment lines starting with '#'.
 
-Notes (GUIDA §1.4, §3.1):
-    - Hold out an internal test set that is NEVER used for model selection.
-    - Target normalization is optional; if used, MEE must still be reported in
-      the ORIGINAL scale -> keep the inverse transform around.
-
-To be implemented in F5/F6.
+Hold out an internal test set that is never used for model selection. Target
+normalization is optional; if used, keep the inverse transform so MEE can be
+reported in the original scale.
 """
 
 from __future__ import annotations

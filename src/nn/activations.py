@@ -4,11 +4,7 @@ Each activation is a small object exposing ``forward(z)`` and ``backward(z)``,
 where ``backward`` returns the elementwise derivative w.r.t. the pre-activation
 ``z``. Working on the pre-activation keeps the layer backward pass uniform.
 
-To be implemented in F1/F2. Planned set (see GUIDA §1.3, §2.3):
-    - Identity (linear)  -> CUP output units
-    - Sigmoid            -> MONK output / hidden
-    - Tanh
-    - ReLU
+Set: Identity (linear output), Sigmoid, Tanh, ReLU.
 """
 
 from __future__ import annotations

@@ -1,15 +1,12 @@
 """Dense (fully-connected) layer.
 
-Vectorized over a batch (GUIDA FAQ V: matrix approach, batch_size x units).
-Shapes:
+Vectorized over a batch of examples. Shapes:
     W : (n_in, n_out)
     b : (1, n_out)
     forward(X):  X (N, n_in) -> Z = X @ W + b -> A = activation(Z)
     backward:    given dA, compute dW, db and dA_prev for the previous layer.
 
 The layer caches the inputs/pre-activations needed for the backward pass.
-
-To be implemented in F1.
 """
 
 from __future__ import annotations

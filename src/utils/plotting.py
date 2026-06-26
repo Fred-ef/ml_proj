@@ -1,12 +1,7 @@
 """Learning-curve plotting helpers.
 
-Report constraints (GUIDA §1.6):
-    - distinguish lines with different line styles/markers so they are readable
-      in BLACK & WHITE;
-    - one point per epoch (mean over the epoch for mini-batch/online);
-    - typically plot both MSE and accuracy (MONK) / MSE and MEE (CUP).
-
-To be implemented in F3 (first plots).
+Plots train/val curves with B/W-friendly line styles/markers, one point per
+epoch, typically MSE and accuracy (MONK) or MSE and MEE (CUP).
 """
 
 from __future__ import annotations

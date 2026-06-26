@@ -1,12 +1,9 @@
 """Evaluation metrics.
 
-    - mee : Mean Euclidean Error -> the official CUP competition metric,
-            always reported in the ORIGINAL target scale (GUIDA §1.4).
+    - mee : Mean Euclidean Error, reported in the original target scale.
             MEE = mean_p sqrt( sum_k (o_pk - t_pk)^2 )
-    - mse : Mean Squared Error -> training loss / reporting.
+    - mse : Mean Squared Error.
     - accuracy : for MONK (sigmoid output thresholded at 0.5).
-
-To be implemented in F2.
 """
 
 from __future__ import annotations

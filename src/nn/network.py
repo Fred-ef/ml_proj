@@ -1,19 +1,8 @@
 """Multilayer Perceptron: stacks Dense layers and runs the training loop.
 
-This is the heart of the Type A simulator. It owns the forward/backward passes,
-the loss, the optimizer and the regularizer, and exposes a scikit-like API
-(``fit`` / ``predict``) plus a ``history`` of per-epoch metrics for plotting.
-
-Design notes (see GUIDA §2.3, §2.4):
-    - fully vectorized (batch / mini-batch / online configurable);
-    - reproducible via a seed -> ``np.random.Generator``;
-    - records per-epoch train/val curves (1 point per epoch; mean over the
-      epoch for mini-batch/online, GUIDA §1.6).
-
-Correctness aid (F1): implement numerical ``gradient_check`` before trusting
-the analytic gradients.
-
-To be implemented in F1 (forward/backward) and F2 (fit/training loop).
+Owns the forward/backward passes, the loss, the optimizer and the regularizer,
+and exposes a scikit-like API (``fit`` / ``predict``) plus a ``history`` of
+per-epoch metrics for plotting. Fully vectorized and reproducible from a seed.
 """
 
 from __future__ import annotations

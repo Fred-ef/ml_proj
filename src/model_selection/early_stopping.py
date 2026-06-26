@@ -1,9 +1,7 @@
-"""Early stopping (optional, see Validation 3 lecture; GUIDA §1.4 / FAQ).
+"""Early stopping.
 
-A small helper that monitors validation error and signals when to stop, with
-patience. To be used *after* the basic grid-search workflow.
-
-To be implemented later (optional / extra).
+A small helper that monitors the validation error and signals when to stop,
+with patience.
 """
 
 from __future__ import annotations
