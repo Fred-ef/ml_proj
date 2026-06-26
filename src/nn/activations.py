@@ -41,15 +41,14 @@ class Sigmoid(Activation):
     name = "sigmoid"
 
     def forward(self, z: np.ndarray) -> np.ndarray:
-        # TODO: Note on numerical stability - consider clipping z to avoid overflow in exp(-z)
-        return 1.0 / (1.0 + np.exp(-z))
+        return self._sigmoid_stable(z)
 
     def backward(self, z: np.ndarray) -> np.ndarray:
-        # Recompute the forward pass (f(z)). The derivative of the Sigmoid is f(z) * (1 - f(z)).
         s = self.forward(z)
         return s * (1.0 - s)
 
-    def sigmoid(z):
+    def _sigmoid_stable(self, z: np.ndarray) -> np.ndarray:
+        """Numerically stable sigmoid implementation."""
         out = np.empty_like(z)
         pos = z >= 0
         out[pos] = 1 / (1 + np.exp(-z[pos]))
