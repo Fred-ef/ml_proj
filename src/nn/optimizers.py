@@ -14,6 +14,8 @@ updates the parameters in place.
 
 from __future__ import annotations
 
+import numpy as np
+
 
 class Optimizer:
     """Base class."""
@@ -36,77 +38,37 @@ class SGD(Optimizer):
     """
 
     def __init__(self, lr: float = 0.01, momentum: float = 0.0, nesterov: bool = False) -> None:
-        """
-        Initializes the Stochastic Gradient Descent optimizer.
-        
-        Args:
-            lr: Learning rate, controls the step size of the parameter update.
-            momentum: Momentum factor (0.0 means classic SGD without momentum).
-                      It accelerates gradient descent in the relevant direction 
-                      and dampens oscillations.
-            nesterov: If True, uses Nesterov Accelerated Gradient (NAG). NAG 
-                      evaluates the gradient at the "lookahead" position rather 
-                      than the current position, offering better theoretical 
-                      convergence rates for convex functions.
-        """
         self.lr = lr
         self.momentum = momentum
         self.nesterov = nesterov
-        
-        # 'velocities' stores the velocity vector for each parameter array.
-        # It must persist across steps to accumulate momentum over time.
+
+        # Per-parameter velocity; persists across steps to accumulate momentum.
         self.velocities = None
 
     def reset(self) -> None:
-        """
-        Resets the internal state of the optimizer.
-        
-        This method clears the accumulated velocities. It is essential to call 
-        this when restarting the training process (e.g., in k-fold cross validation 
-        or multiple runs) to prevent velocities from bleeding over from a 
-        previous training session.
-        """
+        """Clear the accumulated velocities (call between independent runs)."""
         self.velocities = None
 
     def step(self, params: list[np.ndarray], grads: list[np.ndarray]) -> None:
-        """
-        Performs a single optimization step, updating the parameters in-place.
-        
-        Args:
-            params: A list of parameter arrays (e.g., weights and biases) to be updated.
-                    These arrays are modified in-place.
-            grads: A list of gradient arrays corresponding to 'params'.
-        """
-        # Lazy initialization: if this is the first update step, we create 
-        # a zero-filled velocity array of the exact same shape for each parameter.
+        """Update each parameter in place from its gradient (params/grads aligned)."""
+        # On the first step, allocate a zero velocity array per parameter.
         if self.velocities is None:
             self.velocities = [np.zeros_like(p) for p in params]
 
-        # Iterate simultaneously through parameters, their gradients, and their velocities.
         for i, (p, g) in enumerate(zip(params, grads)):
             v = self.velocities[i]
-            
-            # 1. Update the velocity
-            # The new velocity is a linear combination of the previous velocity 
-            # (weighted by 'momentum') and the current gradient (weighted by 'lr').
+
+            # New velocity: momentum-weighted previous velocity minus lr * gradient.
             v_new = self.momentum * v - self.lr * g
             self.velocities[i] = v_new
-            
-            # 2. Apply the update to the parameters IN-PLACE
-            # Using the '+=' operator ensures the original numpy arrays in the layer
-            # are modified directly, rather than creating new detached array objects.
+
+            # Update in place (+= mutates the layer's arrays directly).
             if self.nesterov:
-                # Nesterov Accelerated Gradient (NAG):
-                # NOTE: This implementation uses Sutskever's reformulated NAG, which differs 
-                # from the classic theoretical formulation. The classic formulation requires 
-                # evaluating the gradient at a "lookahead" position (p + momentum * v), 
-                # which would double the forward/backward pass cost in a neural network.
-                # Sutskever's trick mathematically reorganizes the update to use the standard 
-                # gradient evaluated at the current position 'p', applying the lookahead 
-                # algebraically. This yields the exact same trajectory at half the compute cost.
+                # Nesterov (Sutskever's reformulation): apply the lookahead
+                # algebraically using the gradient at the current position 'p',
+                # which avoids a second forward/backward pass.
                 p += self.momentum * v_new - self.lr * g
             else:
-                # Standard momentum update (or classic SGD if momentum is 0.0):
                 p += v_new
 
 

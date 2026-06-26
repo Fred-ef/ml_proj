@@ -18,52 +18,50 @@ ATTR_CARDINALITIES = (3, 3, 2, 3, 4, 2)
 
 def load_monk(path: str) -> tuple[np.ndarray, np.ndarray]:
     """Load a MONK file and return (X_onehot[N,17], y[N,1])."""
-    # Carica il file tramite NumPy, leggendo solo le prime 7 colonne (da 0 a 6).
-    # L'ottava colonna (indice 7) contiene un ID testuale e viene perciò scartata.
+    # Read the file with NumPy, keeping only the first 7 columns (0 to 6).
+    # The 8th column (index 7) is a textual id and is dropped.
     data = np.loadtxt(path, usecols=tuple(range(7)))
-    
-    # Estrae la prima colonna (indice 0) mantenendo la forma (N, 1) bidimensionale. 
-    # Questa colonna rappresenta il target binario (la classe y).
+
+    # First column (index 0) is the binary target; keep the 2D shape (N, 1).
     y = data[:, 0:1]
-    
-    # Estrae le restanti 6 colonne (indici da 1 a 6) che rappresentano i valori degli attributi.
-    # Convertiamo questi valori esplicitamente in interi (int).
+
+    # Remaining 6 columns (indices 1 to 6) are the attribute values, as integers.
     X_raw = data[:, 1:].astype(int)
-    
-    # Passa i valori grezzi appena estratti alla funzione one_hot per ottenere le 17 colonne codificate.
+
+    # One-hot encode the raw attributes into the 17 columns.
     X_onehot = one_hot(X_raw)
-    
-    # Restituisce la tupla contenente i dati elaborati e i rispettivi target.
+
+    # Return the processed inputs and their targets.
     return X_onehot, y
 
 
 def one_hot(values: np.ndarray, cardinalities=ATTR_CARDINALITIES) -> np.ndarray:
     """1-of-k encode integer-coded categorical attributes."""
-    # Ottiene il numero totale di righe N (ovvero il numero di esempi).
+    # Number of rows N (the number of examples).
     N = values.shape[0]
-    
-    # Calcola il numero totale di feature risultanti (la somma delle cardinalità, che è 17).
+
+    # Total number of output features (sum of the cardinalities = 17).
     total_features = sum(cardinalities)
-    
-    # Inizializza la matrice risultante completamente a zero. Avrà dimensioni (N, 17) di tipo float.
+
+    # Allocate the result matrix of zeros, shape (N, 17), dtype float.
     result = np.zeros((N, total_features), dtype=float)
 
-    # Tiene traccia di dove iniziare a scrivere i dati (l'offset delle colonne) per l'attributo che si sta elaborando.
+    # Column offset: where the current attribute's block of columns starts.
     col_offset = 0
-    
-    # Itera su ciascun attributo (i) e sulla sua rispettiva cardinalità (card).
+
+    # Iterate over each attribute (i) and its cardinality (card).
     for i, card in enumerate(cardinalities):
-        # I valori categorici nel MONK partono da 1. Sottraiamo 1 per avere indici 0-based.
-        # "values[:, i]" prende l'intera colonna 'i' per tutte le righe.
+        # MONK categorical values start at 1; subtract 1 for 0-based indices.
+        # values[:, i] is column i for all rows.
         col_indices = values[:, i] - 1
-        
-        # Per ciascuna riga, accediamo alla colonna "col_offset + col_indices" e la impostiamo a 1.0.
-        # Usa np.arange(N) per selezionare tutte le righe simultaneamente e vettorializzare l'operazione.
+
+        # For each row, set column (col_offset + col_indices) to 1.0.
+        # np.arange(N) selects all rows at once (vectorized).
         result[np.arange(N), col_offset + col_indices] = 1.0
-        
-        # Aumenta l'offset per l'attributo successivo aggiungendo la cardinalità attuale,
-        # in modo da "spostarsi" nel prossimo blocco di colonne libere della matrice.
+
+        # Advance the offset by this attribute's cardinality, moving to the
+        # next block of columns.
         col_offset += card
 
-    # Ritorna l'array finale codificato.
+    # Return the encoded array.
     return result

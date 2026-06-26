@@ -13,74 +13,62 @@ from .early_stopping import EarlyStopping
 
 def kfold_indices(n_samples: int, k: int, seed: int | None = None):
     """Yield (train_idx, val_idx) for each of the k folds."""
-    
-    # 1. Inizializzazione del generatore di numeri casuali.
-    #    L'uso di un seed opzionale garantisce la riproducibilità degli split
-    #    (stesso seed = stessi fold ogni volta che si esegue il codice).
+    # Random generator; an optional seed makes the splits reproducible
+    # (same seed = same folds on every run).
     rng = np.random.default_rng(seed)
-    
-    # 2. Creazione dell'array di indici (da 0 a n_samples - 1)
+
+    # Index array (0 .. n_samples - 1).
     indices = np.arange(n_samples)
-    
-    # 3. Shuffling (Rimescolamento)
-    #    È fondamentale mescolare gli indici prima di dividerli in fold.
-    #    Se il dataset originale fosse ordinato per classe (es. tutti i positivi prima, 
-    #    poi i negativi), un fold senza rimescolamento conterrebbe campioni non rappresentativi, 
-    #    falsando completamente la fase di validazione.
+
+    # Shuffle before splitting: if the dataset were ordered by class, a fold
+    # without shuffling would hold non-representative samples and bias validation.
     rng.shuffle(indices)
-    
-    # 4. Divisione in k fold
-    #    np.array_split divide l'array in k sotto-array. Gestisce in automatico anche 
-    #    i casi in cui n_samples non è perfettamente divisibile per k.
+
+    # Split into k sub-arrays (np.array_split also handles a non-divisible n).
     folds = np.array_split(indices, k)
-    
-    # 5. Generazione dei set di Training e Validation per ogni iterazione
+
+    # Build the train/validation sets for each iteration.
     for i in range(k):
-        # Il fold i-esimo viene usato come Validation Set
+        # The i-th fold is the validation set.
         val_idx = folds[i]
-        
-        # Tutti gli ALTRI fold vengono concatenati per formare il Training Set
+
+        # All the other folds are concatenated into the training set.
         train_idx = np.concatenate(folds[:i] + folds[i+1:])
-        
-        # Yield permette alla funzione di comportarsi come un iteratore,
-        # restituendo una coppia (train, val) ad ogni ciclo `for`.
+
+        # Yield a (train, val) pair on each `for` iteration.
         yield train_idx, val_idx
 
 
 def cross_validate(build_model, config: dict, X, Y, k: int = 5, seed: int | None = None) -> dict:
     """Run k-fold CV for one config; return aggregated metrics (mean, std)."""
-    
-    # Liste per accumulare le metriche (es. errore MEE) calcolate in ciascun fold
+    # Accumulate the per-fold metrics.
     val_scores = []
     train_scores = []
-    
-    # Iteriamo sui k fold generati dalla funzione kfold_indices
+
+    # Iterate over the k folds produced by kfold_indices.
     for train_idx, val_idx in kfold_indices(len(X), k, seed):
-        
-        # 1. Suddivisione effettiva dei dati usando gli indici
+
+        # Split the data using the indices.
         X_train, Y_train = X[train_idx], Y[train_idx]
         X_val, Y_val = X[val_idx], Y[val_idx]
-        
-        # 2. Istanziazione del modello
-        #    La funzione build_model riceve il dizionario degli iperparametri (config)
-        #    e restituisce una rete neurale "nuova" (pesi randomizzati da zero) 
-        #    pronta per essere addestrata per questo specifico fold.
+
+        # Build a fresh model (weights re-initialized from scratch) for this fold.
         model = build_model(config)
-        
-        # 3. Estrazione dei parametri specifici per il training (con valori di default)
+
+        # Training hyperparameters (with defaults).
         epochs = config.get('epochs', 100)
         batch_size = config.get('batch_size', None)
-        
-        # Configurazione dell'Early Stopping se specificato negli iperparametri
+
+        # Optional early stopping, if requested in the config.
         patience = config.get('patience', None)
         if patience is not None:
             min_delta = config.get('min_delta', 0.0)
             es_callback = EarlyStopping(patience=patience, min_delta=min_delta)
         else:
             es_callback = None
-        
-        # 4. Addestramento del modello sul fold di training corrente.
-        #    Passiamo anche i dati di validazione per far calcolare la metrica ad ogni epoca.
+
+        # Train on this fold; pass the validation data so the metric is computed
+        # every epoch.
         history = model.fit(
             X_train, Y_train,
             epochs=epochs,
@@ -88,24 +76,20 @@ def cross_validate(build_model, config: dict, X, Y, k: int = 5, seed: int | None
             validation_data=(X_val, Y_val),
             early_stopping=es_callback
         )
-        
-        # 5. Estrazione delle metriche ottimali (Early Stopping Trick)
-        #    Cerchiamo l'epoca in cui la validation loss è minima.
+
+        # Pick the epoch with the lowest validation loss, and the training loss
+        # at that same epoch.
         best_idx = int(np.argmin(history['val_loss']))
-        
-        #    Estraiamo la validation loss minima e la training loss *corrispondente* 
-        #    a quell'epoca. Questa training loss media diventerà il target per il 
-        #    riaddestramento finale.
+
         best_val_loss = history['val_loss'][best_idx]
         best_train_loss = history['loss'][best_idx]
-        
-        # Salviamo i risultati di questo fold nelle liste
+
+        # Store this fold's results.
         val_scores.append(best_val_loss)
         train_scores.append(best_train_loss)
-        
-    # 6. Aggregazione finale
-    #    Calcoliamo la media e la deviazione standard delle metriche attraverso i k fold.
-    #    Il casting a float assicura che il risultato finale sia serializzabile JSON.
+
+    # Aggregate: mean and std across the k folds (cast to float so the result
+    # is JSON-serializable).
     return {
         'val_mee_mean': float(np.mean(val_scores)),
         'val_mee_std': float(np.std(val_scores)),
