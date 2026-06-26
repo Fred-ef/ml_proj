@@ -1,0 +1,5 @@
+# Development / testing dependencies
+# These are tooling (test runner)
+#
+#   pip install -r requirements-dev.txt
+pytest>=8.0

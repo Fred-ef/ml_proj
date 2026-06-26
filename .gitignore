@@ -1,3 +1,16 @@
+# --- ML project: venv, datasets and generated outputs -------------------
+.venv/
+
+# Datasets are downloaded from Moodle, not committed (keep repo/zip small).
+data/*.csv
+data/monks-*
+!data/READ-ME.md
+# Generated experiment outputs (plots, logs, csv) — keep the folders only.
+results/**
+!results/**/
+!results/**/.gitkeep
+# --------------------------------------------------------------------------
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
@@ -217,5 +230,5 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
-# Context folders
+# context
 context/

@@ -1,0 +1,99 @@
+"""Multilayer Perceptron: stacks Dense layers and runs the training loop.
+
+Owns the forward/backward passes, the loss, the optimizer and the regularizer,
+and exposes a scikit-like API (``fit`` / ``predict``) plus a ``history`` of
+per-epoch metrics for plotting. Fully vectorized and reproducible from a seed.
+"""
+
+from __future__ import annotations
+
+import numpy as np
+
+from .layer import Dense
+from .losses import Loss
+from .optimizers import Optimizer
+from .regularizers import Regularizer
+from ..model_selection.early_stopping import EarlyStopping
+
+
+class Network:
+    def __init__(
+        self,
+        layers: list[Dense],
+        loss: Loss,
+        optimizer: Optimizer,
+        regularizer: Regularizer | None = None,
+        seed: int | None = None,
+    ) -> None:
+        self.layers = layers
+        self.loss = loss
+        self.optimizer = optimizer
+        self.regularizer = regularizer
+        self.rng = np.random.default_rng(seed)
+        self.history: dict[str, list[float]] = {}
+
+        for layer in self.layers:
+            layer.build(self.rng)
+
+    # --- core passes -----------------------------------------------------
+    def forward(self, x: np.ndarray) -> np.ndarray:
+        for layer in self.layers:
+            x = layer.forward(x)
+        return x
+
+    def backward(self, y_pred: np.ndarray, y_true: np.ndarray) -> None:
+        grad = self.loss.gradient(y_pred, y_true)
+        for layer in reversed(self.layers):
+            grad = layer.backward(grad)
+
+    # --- public API ------------------------------------------------------
+    def fit(
+        self,
+        x_train: np.ndarray,
+        y_train: np.ndarray,
+        epochs: int,
+        batch_size: int | None = None,
+        validation_data: tuple[np.ndarray, np.ndarray] | None = None,
+        early_stopping: EarlyStopping | None = None,
+    ) -> dict[str, list[float]]:
+        """Train the network, populating and returning ``self.history``."""
+        self.history = {"loss": [], "val_loss": []}
+        self.optimizer.reset()
+        for epoch in range(epochs):
+            y_pred = self.forward(x_train)
+            self.backward(y_pred, y_train)
+            if self.regularizer:
+                for layer in self.layers:
+                    layer.dW += self.regularizer.gradient(layer.W)
+            params = [p for layer in self.layers for p in (layer.W, layer.b)]
+            grads = [g for layer in self.layers for g in (layer.dW, layer.db)]
+            self.optimizer.step(params, grads)
+            self.history["loss"].append(self.loss.value(self.forward(x_train), y_train))
+            if validation_data:
+                x_val, y_val = validation_data
+                self.history["val_loss"].append(self.loss.value(self.forward(x_val), y_val))
+            if early_stopping and early_stopping.should_stop(self.history["val_loss"]):
+                break
+        return self.history
+
+    def predict(self, x: np.ndarray) -> np.ndarray:
+        return self.forward(x)
+
+    # --- correctness -----------------------------------------------------
+    def gradient_check(self, x: np.ndarray, y: np.ndarray, eps: float = 1e-6) -> float:
+        """Compare analytic vs finite-difference gradients (numerical sanity check)."""
+        self.backward(self.forward(x), y)
+        max_rel = 0.0
+        for layer in self.layers:
+            for P, G in [(layer.W, layer.dW), (layer.b, layer.db)]:
+                for i in range(P.size):
+                    old = P.flat[i]
+                    P.flat[i] = old + eps
+                    L_plus = self.loss.value(self.forward(x), y)
+                    P.flat[i] = old - eps
+                    L_minus = self.loss.value(self.forward(x), y)
+                    P.flat[i] = old
+                    g_num = (L_plus - L_minus) / (2 * eps)
+                    rel = abs(G.flat[i] - g_num) / max(1e-12, abs(G.flat[i])+abs(g_num))
+                    max_rel = max(max_rel, rel)
+        return max_rel
