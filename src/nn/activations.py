@@ -49,6 +49,15 @@ class Sigmoid(Activation):
         s = self.forward(z)
         return s * (1.0 - s)
 
+    def sigmoid(z):
+        out = np.empty_like(z)
+        pos = z >= 0
+        out[pos] = 1 / (1 + np.exp(-z[pos]))
+        neg = ~pos
+        ez = np.exp(z[neg])
+        out[neg] = ez / (1 + ez)
+        return out
+
 
 class Tanh(Activation):
     name = "tanh"
