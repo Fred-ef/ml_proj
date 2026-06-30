@@ -12,14 +12,18 @@ import numpy as np
 
 
 def mee(y_pred: np.ndarray, y_true: np.ndarray) -> float:
-    """Mean Euclidean Error over patterns (rows)."""
-    raise NotImplementedError
+    """Mean Euclidean Error over patterns"""
+    distance_per_pattern = np.sqrt(np.sum((y_pred - y_true) ** 2, axis=1))
+    return float(np.mean(distance_per_pattern))
 
 
 def mse(y_pred: np.ndarray, y_true: np.ndarray) -> float:
-    raise NotImplementedError
+    """Mean Squared Error."""
+    return float(np.mean((y_pred - y_true) ** 2))
 
 
 def accuracy(y_pred: np.ndarray, y_true: np.ndarray, threshold: float = 0.5) -> float:
     """Binary accuracy for MONK."""
-    raise NotImplementedError
+    predicted = (y_pred >= threshold)
+    target = (y_true >= 0.5) # targets are already binary
+    return float(np.mean(predicted == target))

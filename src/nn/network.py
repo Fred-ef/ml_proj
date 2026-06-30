@@ -6,6 +6,7 @@ per-epoch metrics for plotting. Fully vectorized and reproducible from a seed.
 """
 
 from __future__ import annotations
+from typing import Callable
 
 import numpy as np
 
@@ -55,10 +56,15 @@ class Network:
         batch_size: int | None = None,
         validation_data: tuple[np.ndarray, np.ndarray] | None = None,
         early_stopping: EarlyStopping | None = None,
+        metrics: dict[str, Callable] | None = None,
     ) -> dict[str, list[float]]:
         """Train the network, populating and returning ``self.history``."""
         self.history = {"loss": [], "val_loss": []}
+        for _name in (metrics or {}):
+            self.history[_name] = []
+            self.history["val_" + _name] = []
         self.optimizer.reset()
+
         for epoch in range(epochs):
             y_pred = self.forward(x_train)
             self.backward(y_pred, y_train)
@@ -68,10 +74,16 @@ class Network:
             params = [p for layer in self.layers for p in (layer.W, layer.b)]
             grads = [g for layer in self.layers for g in (layer.dW, layer.db)]
             self.optimizer.step(params, grads)
-            self.history["loss"].append(self.loss.value(self.forward(x_train), y_train))
+            y_tr = self.forward(x_train)
+            self.history["loss"].append(self.loss.value(y_tr, y_train))
+            for _name, _fn in (metrics or {}).items():
+                self.history[_name].append(_fn(y_tr, y_train))
             if validation_data:
                 x_val, y_val = validation_data
-                self.history["val_loss"].append(self.loss.value(self.forward(x_val), y_val))
+                y_val_pred = self.forward(x_val)
+                self.history["val_loss"].append(self.loss.value(y_val_pred, y_val))
+                for _name, _fn in (metrics or {}).items():
+                    self.history["val_" + _name].append(_fn(y_val_pred, y_val))
             if early_stopping and early_stopping.should_stop(self.history["val_loss"]):
                 break
         return self.history
