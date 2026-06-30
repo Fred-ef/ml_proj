@@ -65,15 +65,24 @@ class Network:
             self.history["val_" + _name] = []
         self.optimizer.reset()
 
+        N = x_train.shape[0]
+        m = batch_size if batch_size is not None else N
+
         for epoch in range(epochs):
-            y_pred = self.forward(x_train)
-            self.backward(y_pred, y_train)
-            if self.regularizer:
-                for layer in self.layers:
-                    layer.dW += self.regularizer.gradient(layer.W)
-            params = [p for layer in self.layers for p in (layer.W, layer.b)]
-            grads = [g for layer in self.layers for g in (layer.dW, layer.db)]
-            self.optimizer.step(params, grads)
+            perm = self.rng.permutation(N)
+            for start in range (0, N, m):
+                idx = perm[start:start+m]
+                x_batch = x_train[idx]
+                y_batch = y_train[idx]
+
+                y_pred = self.forward(x_batch)
+                self.backward(y_pred, y_batch)
+                if self.regularizer:
+                    for layer in self.layers:
+                        layer.dW += self.regularizer.gradient(layer.W)
+                params = [p for layer in self.layers for p in (layer.W, layer.b)]
+                grads = [g for layer in self.layers for g in (layer.dW, layer.db)]
+                self.optimizer.step(params, grads)
             y_tr = self.forward(x_train)
             self.history["loss"].append(self.loss.value(y_tr, y_train))
             for _name, _fn in (metrics or {}).items():
