@@ -13,6 +13,7 @@ updates the parameters in place.
 """
 
 from __future__ import annotations
+from typing import Callable
 
 import numpy as np
 
@@ -37,10 +38,11 @@ class SGD(Optimizer):
     nesterov : bool       use Nesterov accelerated gradient (extra comparison)
     """
 
-    def __init__(self, lr: float = 0.01, momentum: float = 0.0, nesterov: bool = False) -> None:
+    def __init__(self, lr: float | Callable = 0.01, momentum: float = 0.0, nesterov: bool = False) -> None:
         self.lr = lr
         self.momentum = momentum
         self.nesterov = nesterov
+        self.step_count = 0
 
         # Per-parameter velocity; persists across steps to accumulate momentum.
         self.velocities = None
@@ -48,9 +50,14 @@ class SGD(Optimizer):
     def reset(self) -> None:
         """Clear the accumulated velocities (call between independent runs)."""
         self.velocities = None
+        self.step_count = 0
 
     def step(self, params: list[np.ndarray], grads: list[np.ndarray]) -> None:
         """Update each parameter in place from its gradient (params/grads aligned)."""
+        # Resolve the learning rate for the current step (if it's a scheduler)
+        current_lr = self.lr(self.step_count) if callable(self.lr) else self.lr
+        self.step_count += 1
+        
         # On the first step, allocate a zero velocity array per parameter.
         if self.velocities is None:
             self.velocities = [np.zeros_like(p) for p in params]
@@ -59,7 +66,7 @@ class SGD(Optimizer):
             v = self.velocities[i]
 
             # New velocity: momentum-weighted previous velocity minus lr * gradient.
-            v_new = self.momentum * v - self.lr * g
+            v_new = self.momentum * v - current_lr * g
             self.velocities[i] = v_new
 
             # Update in place (+= mutates the layer's arrays directly).
@@ -67,7 +74,7 @@ class SGD(Optimizer):
                 # Nesterov (Sutskever's reformulation): apply the lookahead
                 # algebraically using the gradient at the current position 'p',
                 # which avoids a second forward/backward pass.
-                p += self.momentum * v_new - self.lr * g
+                p += self.momentum * v_new - current_lr * g
             else:
                 p += v_new
 
