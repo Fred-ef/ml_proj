@@ -5,7 +5,7 @@ Training file ``ML-CUP25-TR.csv``: 500 rows, columns =
 Blind test ``ML-CUP25-TS.csv``: 1000 rows, id + x1..x12 (no targets).
 Both have a few header comment lines starting with '#'.
 
-Hold out a validation set to be used for model selection (hyperparameter tuning).
+Hold out an internal test set that is never used for model selection.
 Target normalization is optional; if used, keep the inverse transform so MEE can
 be reported in the original scale.
 """
@@ -35,15 +35,15 @@ def load_cup_blind(path: str) -> tuple[np.ndarray, np.ndarray]:
     return ids, X
 
 
-def train_validation_split(X, Y, val_frac: float = 0.2, seed: int | None = None):
-    """Split the dataset into training and validation sets for model selection."""
+def train_internal_test_split(X, Y, test_frac: float = 0.2, seed: int | None = None):
+    """Split off an untouched internal test set for final risk estimation."""
     n_samples = X.shape[0]
     rng = np.random.default_rng(seed)
     indices = np.arange(n_samples)
     rng.shuffle(indices)
     
-    split_idx = int(n_samples * (1.0 - val_frac))
+    split_idx = int(n_samples * (1.0 - test_frac))
     train_idx = indices[:split_idx]
-    val_idx = indices[split_idx:]
+    test_idx = indices[split_idx:]
     
-    return X[train_idx], Y[train_idx], X[val_idx], Y[val_idx]
+    return X[train_idx], Y[train_idx], X[test_idx], Y[test_idx]
