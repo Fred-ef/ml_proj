@@ -1,0 +1,20 @@
+{
+  "task": "monk1",
+  "mode": "assess",
+  "tag": "final",
+  "config": {
+    "arch": [
+      {"units": 3, "act": "tanh", "init": "uniform", "init_kwargs": {"scale": 0.3}},
+      {"units": 1, "act": "sigmoid", "init": "uniform", "init_kwargs": {"scale": 0.3}}
+    ],
+    "loss": "mse",
+    "optim": {"type": "sgd", "lr": 0.05, "momentum": 0.9},
+    "reg": null,
+    "epochs": 300,
+    "batch_size": null,
+    "seed": 0,
+    "n_trials": 5,
+    "val_mean": 0.19,
+    "val_std": 0.01
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "task": "cup",
+  "mode": "select",
+  "tag": "grid-coarse",
+  "config": {
+    "k": 5,
+    "seed": 0,
+    "fixed": {
+      "loss": "mse",
+      "epochs": 100,
+      "batch_size": null
+    },
+    "grid": {
+      "arch": [
+        [{"units": 16, "act": "tanh", "init": "glorot"}, {"units": 4, "act": "identity", "init": "glorot"}],
+        [{"units": 32, "act": "tanh", "init": "glorot"}, {"units": 4, "act": "identity", "init": "glorot"}],
+        [{"units": 16, "act": "tanh", "init": "glorot"}, {"units": 16, "act": "tanh", "init": "glorot"}, {"units": 4, "act": "identity", "init": "glorot"}]
+      ],
+      "optim": [
+        {"type": "sgd", "lr": 0.01, "momentum": 0.9},
+        {"type": "sgd", "lr": 0.005, "momentum": 0.9}
+      ],
+      "reg": [null, {"type": "l2", "lam": 0.0001}]
+    }
+  }
+}
