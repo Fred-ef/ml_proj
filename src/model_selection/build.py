@@ -10,14 +10,14 @@ from ..nn.network import Network
 from ..nn.activations import Identity, Sigmoid, Tanh, ReLU
 from ..nn.initializers import Uniform, Glorot, He
 from ..nn.losses import MSE
-from ..nn.optimizers import SGD
+from ..nn.optimizers import SGD, QuickProp
 from ..nn.regularizers import L2, L1
 
 # Dispatch: config strings -> classes
 _ACT  = {"identity": Identity, "sigmoid": Sigmoid, "tanh": Tanh, "relu": ReLU}
 _INIT = {"uniform": Uniform, "glorot": Glorot, "he": He}
 _LOSS = {"mse": MSE}
-_OPT  = {"sgd": SGD}
+_OPT  = {"sgd": SGD, "quickprop": QuickProp}
 _REG  = {"l2": L2, "l1": L1}
 
 def build_model(config: dict) -> Network:
