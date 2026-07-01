@@ -10,6 +10,7 @@ from __future__ import annotations
 from itertools import product
 from typing import Iterable
 
+from ..utils.metrics import METRICS
 from .kfold import cross_validate
 
 
@@ -20,7 +21,7 @@ def iter_grid(param_grid: dict[str, Iterable]):
         yield dict(zip(keys, combo))
 
 
-def grid_search(param_grid, build_model, X, Y, k: int = 5, seed: int | None = None):
+def grid_search(param_grid, build_model, X, Y, k: int = 5, seed: int | None = None, metric: str = "loss"):
     """Evaluate every config via k-fold CV; return results sorted by val MEE."""
     results = []
 
@@ -32,25 +33,15 @@ def grid_search(param_grid, build_model, X, Y, k: int = 5, seed: int | None = No
 
     for i, config in enumerate(configs, 1):
         print(f"\n[{i}/{total_configs}] Evaluating config: {config}...")
-
-        # Evaluate the current configuration.
-        metrics = cross_validate(build_model, config, X, Y, k=k, seed=seed)
-
-        # Build the result entry.
-        result_entry = {
-            'config': config,
-            **metrics
-        }
-        results.append(result_entry)
-
-        # Immediate feedback on the result.
-        val_mee = metrics.get('val_mee_mean', 'N/A')
-        print(f"  -> Result (mean val MEE): {val_mee}")
+        result = cross_validate(build_model, config, X, Y, k=k, seed=seed, metric=metric)
+        results.append({"config": config, **result})
+        print(f"    -> mean val {metric}: {result[f'val_{metric}_mean']}")
 
     print("\nGrid search done. Sorting results...")
 
-    # Sort best to worst (lower MEE = better); float('inf') as a fallback if the
-    # key is missing for any reason.
-    results.sort(key=lambda x: x.get('val_mee_mean', float('inf')))
-
+    # Rank best-to-worst on the SAME metric, in the correct direction
+    mean_key = f"val_{metric}_mean"
+    greater_is_better = (metric != "loss") and METRICS[metric][1]
+    worst = float('inf') if not greater_is_better else float('-inf')
+    results.sort(key=lambda x: x.get(mean_key, worst), reverse=greater_is_better)
     return results
