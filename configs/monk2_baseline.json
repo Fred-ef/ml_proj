@@ -1,0 +1,15 @@
+{
+  "task": "monk2",
+  "mode": "train",
+  "tag": "baseline",
+  "config": {
+    "arch": [
+      {"units": 4, "act": "tanh",    "init": "uniform", "init_kwargs": {"scale": 0.3}},
+      {"units": 1, "act": "sigmoid", "init": "uniform", "init_kwargs": {"scale": 0.3}}
+    ],
+    "loss": "mse",
+    "optim": {"type": "sgd", "lr": 0.1, "momentum": 0.9},
+    "reg": null,
+    "epochs": 300, "batch_size": null, "seed": 0, "n_trials": 5
+  }
+}

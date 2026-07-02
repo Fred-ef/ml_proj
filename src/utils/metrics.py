@@ -27,3 +27,12 @@ def accuracy(y_pred: np.ndarray, y_true: np.ndarray, threshold: float = 0.5) -> 
     predicted = (y_pred >= threshold)
     target = (y_true >= 0.5) # targets are already binary
     return float(np.mean(predicted == target))
+
+# Selection metrics: name -> (function, greater_is_better).
+# Binds a metric name to its function and to the "better" direction.
+# Used by cross_validate / grid_search to rank configs
+METRICS = {
+    "mee": (mee, False),   # lower is better
+    "mse": (mse, False),   # lower is better
+    "acc": (accuracy, True),  # higher is better
+}
