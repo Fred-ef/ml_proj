@@ -53,6 +53,23 @@ python -m experiments.cup_screening   # CUP: grid search / model selection
 python -m experiments.cup_final       # CUP: retrain + blind-test CSV + abstract
 ```
 
+## Experiment service + web console
+
+Besides the CLI entry points above, `service/` exposes the same runner through
+an HTTP API (FastAPI) plus an optional web console (NiceGUI) mounted on the
+same app — pure `pip install`, no separate frontend build.
+
+```bash
+pip install -r requirements-dev.txt
+uvicorn service.gui:app --reload --port 8000
+# open http://127.0.0.1:8000/gui  — submit train/select/assess jobs, watch them
+# run, browse past results (summary tables + learning curves)
+```
+
+API only, no console: `uvicorn service.app:app` (`http://127.0.0.1:8000/docs`
+still serves the raw OpenAPI UI, unaffected). See `service/app.py` (routes),
+`service/schemas.py` (request validation) and `service/gui.py` (the console).
+
 ## Status
 
 Scaffolding only (phase **F0** in the guide): package structure, module stubs
