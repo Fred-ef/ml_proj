@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import multiprocessing
 import time
 import traceback
 from concurrent.futures import Future, ProcessPoolExecutor
@@ -10,7 +11,8 @@ from typing import Optional
 
 from runner.engine import run_experiment
 
-_pool = ProcessPoolExecutor(max_workers=1)
+# Using spawn instead of fork to avoid deadlocks (fork also copies sockets and locks)
+_pool = ProcessPoolExecutor(max_workers=1, mp_context=multiprocessing.get_context("spawn"))
 _JOBS: dict[str, "JobRecord"] = {}
 
 
