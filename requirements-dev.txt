@@ -1,5 +1,8 @@
 # Development / testing dependencies
-# These are tooling (test runner)
+# Tooling (test runner + API's HTTP layer)
 #
 #   pip install -r requirements-dev.txt
 pytest>=8.0
+fastapi>=0.115
+uvicorn[standard]>=0.32
+httpx>=0.27          # TestClient for the service's tests
