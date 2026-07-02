@@ -5,4 +5,5 @@
 pytest>=8.0
 fastapi>=0.115
 uvicorn[standard]>=0.32
-httpx>=0.27          # TestClient for the service's tests
+httpx>=0.27          # TestClient for the tests + the GUI's in-process API client
+nicegui>=3.0         # optional web console over the service (service/gui.py); pure pip, no Node
