@@ -1,11 +1,9 @@
-"""Phase 1 tests: build + forward + predict (no gradients yet).
+"""build + forward + predict (no gradients)
 
-Deterministic (fixed seeds), small and fast, one concept per test; they check
-the contract (shapes, expected numbers, invariants), not internal details.
+Deterministic and small, checks the contract (shapes, expected numbers,
+and invariants)
 
-Run from the project root:
-    pytest
-    pytest tests/test_phase1_forward.py -v
+Run from the project root: pytest tests/test_forward.py -v
 """
 
 import numpy as np

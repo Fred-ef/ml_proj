@@ -1,11 +1,11 @@
-"""Model-selection tests: k-fold CV, grid search, and multi-seed trials.
+"""Model-selection tests: k-fold CV, grid search, and multi-seed trials
 
-These pin the pieces built on top of the from-scratch core: the selection
-METRICS registry (name -> function + "better" direction), cross_validate's
-metric-directed epoch pick, grid_search's declarative nested grid and ranking,
-and run_trials' seed aggregation + opt-in early stopping.
+- Selection metrics registry (name -> function + "better" direction)
+- cross_validate's metric-directed epoch pick
+- grid_search's declarative nested grid
+- run_trials' seed aggregation + early stopping
 
-Run from the project root:  pytest tests/test_model_selection.py -v
+Run from the project root: pytest tests/test_model_selection.py -v
 """
 
 import numpy as np

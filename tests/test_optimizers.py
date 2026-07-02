@@ -1,14 +1,13 @@
-"""Optimizer tests: the weight-update rules (SGD, QuickProp).
+"""Optimizer tests: weight-update rules (SGD, QuickProp)
 
-test_fit exercises the optimizers end-to-end; here we pin the *update rule*
-itself. Where the math is simple we check the exact one-step formula; we also
-check the per-parameter state (velocity / previous gradient+step) and its reset.
+Testing optimizers end-to-end. Checking the exact one-step formula and
+per-parameter state (velocity / previous gradient+step) and its reset.
 For QuickProp we additionally verify that it (a) bootstraps the first step as
 plain gradient descent, (b) caps its step growth by mu, and (c) minimizes a
 known quadratic. QuickProp is a full-batch method, so its integration test uses
 batch_size=None.
 
-Run from the project root:  pytest tests/test_optimizers.py -v
+Run from the project root: pytest tests/test_optimizers.py -v
 """
 
 import numpy as np
