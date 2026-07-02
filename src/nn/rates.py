@@ -59,7 +59,8 @@ class LinearDecay:
         self.eta_0 = eta_0
         self.tau = tau
         self.eta_tau = eta_tau if eta_tau is not None else 0.01 * eta_0
+        self.steps_per_epoch = 1
 
     def __call__(self, step: int) -> float:
-        gamma = min(step / self.tau, 1.0)
+        gamma = min(step / (self.tau * self.steps_per_epoch), 1.0)
         return (1.0 - gamma) * self.eta_0 + gamma * self.eta_tau

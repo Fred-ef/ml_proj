@@ -67,6 +67,10 @@ class Network:
 
         N = x_train.shape[0]
         m = batch_size if batch_size is not None else N
+        steps_per_epoch = int(np.ceil(N / m))
+
+        if hasattr(self.optimizer, 'lr') and hasattr(self.optimizer.lr, 'steps_per_epoch'):
+            self.optimizer.lr.steps_per_epoch = steps_per_epoch
 
         for epoch in range(epochs):
             perm = self.rng.permutation(N)
