@@ -5,9 +5,9 @@ Training file ``ML-CUP25-TR.csv``: 500 rows, columns =
 Blind test ``ML-CUP25-TS.csv``: 1000 rows, id + x1..x12 (no targets).
 Both have a few header comment lines starting with '#'.
 
-Hold out an internal test set that is never used for model selection. Target
-normalization is optional; if used, keep the inverse transform so MEE can be
-reported in the original scale.
+Hold out an internal test set that is never used for model selection.
+Target normalization is optional; if used, keep the inverse transform so MEE can
+be reported in the original scale.
 """
 
 from __future__ import annotations
