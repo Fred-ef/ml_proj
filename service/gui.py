@@ -10,6 +10,7 @@ from __future__ import annotations
 import base64
 import json
 from datetime import datetime
+from functools import partial
 from pathlib import Path
 from typing import Any, Optional, get_args
 
@@ -225,36 +226,187 @@ class TrainForm:
         self.val_std.value = cfg.get("val_std")
 
 
-_DEFAULT_FIXED = json.dumps({"loss": "mse", "epochs": 80, "batch_size": None}, indent=2)
-_DEFAULT_GRID = json.dumps({
-    "arch": [[{"units": 3, "act": "tanh", "init": "uniform", "init_kwargs": {"scale": 0.3}},
-             {"units": 1, "act": "sigmoid", "init": "uniform", "init_kwargs": {"scale": 0.3}}]],
-    "optim": [{"type": "sgd", "lr": 0.1, "momentum": 0.9}],
-    "reg": [None],
-}, indent=2)
+_DEFAULT_ARCH = [{"units": 3, "act": "tanh", "init": "uniform", "init_kwargs": {"scale": 0.3}},
+                 {"units": 1, "act": "sigmoid", "init": "uniform", "init_kwargs": {"scale": 0.3}}]
+_DEFAULT_OPTIM = {"type": "sgd", "lr": 0.1, "momentum": 0.9}
+_UNSET = object()
+
+
+class AxisList:
+    """1..N repeatable candidate widgets for one select-grid field. Exactly one
+    candidate means a fixed value; two or more means a grid axis to sweep —
+    runner/registry.py's `_select` folds a fixed value into a singleton grid
+    list internally anyway, so "how many candidates" is the only real
+    fixed/grid distinction, which is what lets one widget serve both."""
+
+    def __init__(self, make_row, *, add_label: str = "+ valore", default: Any = None) -> None:
+        self._make_row = make_row
+        self._default = default
+        self.rows: list[Any] = []
+        self.container = ui.column().classes("gap-2 w-full")
+        ui.button(add_label, icon="add", on_click=lambda: self.add_row()).props("outline dense")
+        self.add_row()
+
+    def add_row(self, value: Any = _UNSET) -> None:
+        v = self._default if value is _UNSET else value
+        self.rows.append(self._make_row(self.container, self._remove, value=v))
+
+    def _remove(self, row: Any) -> None:
+        if len(self.rows) <= 1:
+            ui.notify("Serve almeno un valore", type="warning")
+            return
+        row.delete()
+        self.rows.remove(row)
+
+    def values(self) -> list:
+        return [r.value() for r in self.rows]
+
+    def load_values(self, values: list) -> None:
+        for r in list(self.rows):
+            r.delete()
+        self.rows.clear()
+        for v in values:
+            self.add_row(value=v)
+
+
+class ArchCandidate:
+    """One `arch` candidate; wraps an ArchSection so a grid axis can hold whole
+    layer-list architectures, exactly like TrainForm's own arch field."""
+
+    def __init__(self, container: ui.column, on_remove, *, value: Optional[list[dict]] = None) -> None:
+        with container, ui.card().classes("w-full").props("bordered") as self.card:
+            with ui.row().classes("w-full items-center justify-between"):
+                ui.label("architettura").classes("text-caption")
+                ui.button(icon="delete", on_click=lambda: on_remove(self)).props("flat dense round")
+            self.section = ArchSection()
+            if value:
+                self.section.load(value)
+
+    def value(self) -> list[dict]:
+        return self.section.to_list()
+
+    def delete(self) -> None:
+        self.card.delete()
+
+
+class OptimCandidate:
+    """One `optim` candidate; wraps an OptimSection."""
+
+    def __init__(self, container: ui.column, on_remove, *, value: Optional[dict] = None) -> None:
+        with container, ui.card().classes("w-full").props("bordered") as self.card:
+            with ui.row().classes("w-full items-center justify-between"):
+                ui.label("ottimizzatore").classes("text-caption")
+                ui.button(icon="delete", on_click=lambda: on_remove(self)).props("flat dense round")
+            self.section = OptimSection()
+            if value:
+                self.section.load(value)
+
+    def value(self) -> dict:
+        return self.section.to_dict()
+
+    def delete(self) -> None:
+        self.card.delete()
+
+
+class RegCandidate:
+    """One `reg` candidate; wraps a RegSection so a candidate can be "off"
+    (None) exactly like RegSection's own checkbox does for TrainForm."""
+
+    def __init__(self, container: ui.column, on_remove, *, value: Optional[dict] = None) -> None:
+        with container, ui.card().classes("w-full").props("bordered") as self.card:
+            with ui.row().classes("w-full items-center justify-between"):
+                ui.label("regolarizzazione").classes("text-caption")
+                ui.button(icon="delete", on_click=lambda: on_remove(self)).props("flat dense round")
+            self.section = RegSection()
+            if value is not None:
+                self.section.load(value)
+
+    def value(self) -> Optional[dict]:
+        return self.section.to_dict()
+
+    def delete(self) -> None:
+        self.card.delete()
+
+
+class ScalarCandidate:
+    """One numeric candidate for a scalar axis (epochs/batch_size/patience/
+    min_delta); an empty field is None, same as TrainForm's "vuoto = ..." fields."""
+
+    def __init__(self, container: ui.column, on_remove, *, value: Optional[float] = None, **kw: Any) -> None:
+        with container, ui.row().classes("items-center gap-2") as self.row:
+            self.field = ui.number(value=value, **kw).classes("w-32")
+            ui.button(icon="delete", on_click=lambda: on_remove(self)).props("flat dense round")
+
+    def value(self) -> Optional[float]:
+        return self.field.value if self.field.value not in (None, "") else None
+
+    def delete(self) -> None:
+        self.row.delete()
 
 
 class SelectForm:
-    """`grid` axes are intentionally free-form JSON, not a visual builder — an
-    axis can hold whole arch/optim/reg structures (see schemas.py's SelectConfig
-    docstring); a rigid per-axis widget set would fight that flexibility."""
+    """Backs mode=select (SelectConfig, schemas.py). Reuses TrainForm's own
+    building blocks (ArchSection/OptimSection/RegSection) so arch/optim/reg
+    look identical here; every field is an AxisList of candidates instead of
+    the hand-edited `fixed`/`grid` JSON this replaces (see AxisList's
+    docstring for why one widget can serve both fixed values and grid axes)."""
 
     def __init__(self) -> None:
         with ui.card().classes("w-full") as self.root:
             with ui.row().classes("gap-4"):
                 self.k = ui.number("k (fold)", value=5, min=2, precision=0).classes("w-28")
                 self.seed = ui.number("seed (vuoto = random)", value=0, precision=0).classes("w-44")
-            ui.label("fixed — JSON, chiavi costanti su tutta la griglia").classes("text-bold")
-            self.fixed = ui.textarea(value=_DEFAULT_FIXED).classes("w-full font-mono").props("rows=4")
-            ui.label("grid — JSON, assi da combinare (prodotto cartesiano)").classes("text-bold")
-            self.grid = ui.textarea(value=_DEFAULT_GRID).classes("w-full font-mono").props("rows=10")
+            ui.separator()
+            ui.label("Architettura — 1 valore = fissa, più valori = griglia da confrontare").classes("text-bold")
+            self.arch = AxisList(ArchCandidate, add_label="+ architettura", default=_DEFAULT_ARCH)
+            ui.separator()
+            ui.label("Ottimizzatore — 1 valore = fisso, più valori = griglia da confrontare").classes("text-bold")
+            self.optim = AxisList(OptimCandidate, add_label="+ ottimizzatore", default=_DEFAULT_OPTIM)
+            ui.separator()
+            ui.label("Regolarizzazione — 1 valore = fissa, più valori = griglia da confrontare").classes("text-bold")
+            self.reg = AxisList(RegCandidate, add_label="+ regolarizzazione", default=None)
+            ui.separator()
+            ui.label("Epoche / batch / early stopping").classes("text-bold")
+            with ui.row().classes("gap-8 items-start"):
+                with ui.column().classes("gap-1"):
+                    ui.label("epochs").classes("text-caption")
+                    self.epochs = AxisList(partial(ScalarCandidate, min=1, precision=0),
+                                           add_label="+ epochs", default=80)
+                with ui.column().classes("gap-1"):
+                    ui.label("batch_size (vuoto = full batch)").classes("text-caption")
+                    self.batch_size = AxisList(partial(ScalarCandidate, min=1, precision=0),
+                                               add_label="+ batch_size", default=None)
+                with ui.column().classes("gap-1"):
+                    ui.label("patience (vuoto = disattivo)").classes("text-caption")
+                    self.patience = AxisList(partial(ScalarCandidate, min=1, precision=0),
+                                             add_label="+ patience", default=None)
+                with ui.column().classes("gap-1"):
+                    ui.label("min_delta").classes("text-caption")
+                    self.min_delta = AxisList(partial(ScalarCandidate, min=0.0, step=0.0001),
+                                              add_label="+ min_delta", default=0.0)
 
     def build(self) -> dict:
-        try:
-            fixed = json.loads(self.fixed.value or "{}")
-            grid = json.loads(self.grid.value or "{}")
-        except json.JSONDecodeError as e:
-            raise ValueError(f"JSON non valido in fixed/grid: {e}") from e
+        fixed: dict = {}
+        grid: dict = {}
+
+        def put(key: str, values: list, *, omit_none_singleton: bool = False) -> None:
+            if omit_none_singleton and len(values) == 1 and values[0] is None:
+                return
+            if len(values) == 1:
+                fixed[key] = values[0]
+            else:
+                grid[key] = values
+
+        put("arch", self.arch.values())
+        put("optim", self.optim.values())
+        put("reg", self.reg.values(), omit_none_singleton=True)
+        put("epochs", [int(v) if v is not None else 1 for v in self.epochs.values()])
+        put("batch_size", [int(v) if v is not None else None for v in self.batch_size.values()],
+            omit_none_singleton=True)
+        put("patience", [int(v) if v is not None else None for v in self.patience.values()],
+            omit_none_singleton=True)
+        put("min_delta", [float(v) if v is not None else 0.0 for v in self.min_delta.values()])
+
         cfg: dict = {"k": int(self.k.value or 5), "fixed": fixed, "grid": grid}
         if self.seed.value not in (None, ""):
             cfg["seed"] = int(self.seed.value)
@@ -263,8 +415,22 @@ class SelectForm:
     def load(self, cfg: dict) -> None:
         self.k.value = cfg.get("k", 5)
         self.seed.value = cfg.get("seed")
-        self.fixed.value = json.dumps(cfg.get("fixed", {}), indent=2, ensure_ascii=False)
-        self.grid.value = json.dumps(cfg.get("grid", {}), indent=2, ensure_ascii=False)
+        fixed, grid = cfg.get("fixed", {}), cfg.get("grid", {})
+
+        def axis_values(key: str, default: Any) -> list:
+            if key in grid:
+                return list(grid[key])
+            if key in fixed:
+                return [fixed[key]]
+            return [default]
+
+        self.arch.load_values(axis_values("arch", _DEFAULT_ARCH))
+        self.optim.load_values(axis_values("optim", _DEFAULT_OPTIM))
+        self.reg.load_values(axis_values("reg", None))
+        self.epochs.load_values(axis_values("epochs", 80))
+        self.batch_size.load_values(axis_values("batch_size", None))
+        self.patience.load_values(axis_values("patience", None))
+        self.min_delta.load_values(axis_values("min_delta", 0.0))
 
 
 # --------------------------------------------------------------- results view
