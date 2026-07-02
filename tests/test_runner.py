@@ -1,12 +1,8 @@
-"""Runner tests: task/mode dispatch (registry) and the shared execution engine.
+"""Runner tests: task/mode dispatch and shared execution engine
 
-Pure infrastructure (Tier 3, see WORKING_AGREEMENT): these pin the CLI/API-
-independent core that both frontends call — task profile resolution, mode
+Testing the core that both interfaces call — task profile resolution, mode
 handlers wiring the from-scratch core (run_trials/grid_search/build_model),
-and run persistence/indexing. No numerical logic is exercised beyond what
-src/ already guarantees; MONK/CUP data files are used since they're already
-checked into data/monk/ and data/cup/. Every run writes under pytest's
-tmp_path, never into the real results/ directory.
+and run persistence/indexing
 
 Run from the project root:  pytest tests/test_runner.py -v
 """

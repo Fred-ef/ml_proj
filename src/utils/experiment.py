@@ -1,7 +1,12 @@
 """Experiment logging & reproducibility utilities.
 
-One run = one directory under ``results/<task>/<run_id>/`` holding: config + environment, final metrics, mean/std
-over trials and per-epoch curves. An append-only aggregate provides one row per run as the comparison table.
+One run = one directory under `results/<task>/<run_id>/` holding:
+- config + environment
+- final metrics
+- mean/std over trials
+- per-epoch curves
+
+An append-only aggregate provides one row per run as the comparison table.
 """
 
 from __future__ import annotations
@@ -36,8 +41,8 @@ def _dump_json(path: Path, obj) -> None:
 
 # ----------------------------------------------------- environment / reproducibility
 def capture_env() -> dict:
-    """Snapshot of the environment: lets you reproduce a run and fill the
-    'training time & machine' info required by the report (F7)."""
+    """Snapshot of the environment: enables reproducibility of a run and provides
+    training time & machine info"""
     return {
         "timestamp": datetime.now().isoformat(timespec="seconds"),
         "python": sys.version.split()[0],
@@ -49,8 +54,13 @@ def capture_env() -> dict:
 
 # --------------------------------------------------------------- run id / directories
 def make_run_id(tag: str, seed: int | None = None) -> str:
-    """e.g. '2026-06-30_143012_baseline' (chronologically sortable + human readable)"""
-    rid = f"{datetime.now():%Y-%m-%d_%H%M%S}_{tag}"
+    """e.g. '2026-06-30_143012_483_baseline'.
+
+    Chronologically sortable, human-readable, millisecond-resolution so two
+    rapid successive calls don't collide.
+    """
+    now = datetime.now()
+    rid = f"{now:%Y-%m-%d_%H%M%S}_{now.microsecond // 1000:03d}_{tag}"
     return rid if seed is None else f"{rid}_s{seed}"
 
 

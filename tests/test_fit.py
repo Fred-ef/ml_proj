@@ -1,11 +1,10 @@
-"""Phase 3 tests: the ``fit`` training loop.
+"""fit training loop
 
-The overfit test is the headline: a correct network must be able to memorize a
-few examples (loss -> ~0). We also check the ``history`` contract,
+The overfit test is the headline.  We also check the history contract,
 reproducibility, the regularizer effect, and the early-stopping hook (which
-``cross_validate`` relies on).
+cross_validate relies on)
 
-Run from the project root:  pytest tests/test_phase3_fit.py -v
+Run from the project root:  pytest tests/test_fit.py -v
 """
 
 import numpy as np

@@ -1,12 +1,11 @@
-"""Phase 2 tests: backward + gradient_check.
+"""backward + gradient_check
 
 The key test is the gradient check: it compares the analytic gradient (from
 backward) with the numerical one (finite differences). If it passes, the
 backpropagation is correct. We check it across activations and depths, verify
-the shapes, a hand-computed case, and — a meta-test — that the check has teeth
-(it rejects a wrong gradient).
+the shapes, a hand-computed case, and that the check rejects a wrong gradient
 
-Run from the project root:  pytest tests/test_phase2_backward.py -v
+Run from the project root: pytest tests/test_backward.py -v
 """
 
 import numpy as np
