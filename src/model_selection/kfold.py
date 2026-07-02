@@ -10,6 +10,7 @@ import numpy as np
 
 from ..utils.metrics import METRICS
 from .early_stopping import EarlyStopping
+from ..data.preprocessing import StandardScaler
 
 
 def kfold_indices(n_samples: int, k: int, seed: int | None = None):
@@ -51,6 +52,15 @@ def cross_validate(build_model, config: dict, X, Y, k: int = 5, seed: int | None
 
         X_train, Y_train = X[train_idx], Y[train_idx]
         X_val, Y_val = X[val_idx], Y[val_idx]
+
+        if config.get("scale", False):
+            scaler_X = StandardScaler()
+            X_train = scaler_X.fit_transform(X_train)
+            X_val = scaler_X.transform(X_val)
+            
+            scaler_Y = StandardScaler()
+            Y_train = scaler_Y.fit_transform(Y_train)
+            Y_val = scaler_Y.transform(Y_val)
 
         # Give each fold its own reproducible model seed.
         fold_seed = None if seed is None else seed + fold_idx

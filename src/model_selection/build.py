@@ -12,13 +12,15 @@ from ..nn.initializers import Uniform, Glorot, He
 from ..nn.losses import MSE
 from ..nn.optimizers import SGD, QuickProp
 from ..nn.regularizers import L2, L1
+from ..nn.rates import AdaGrad, LinearDecay
 
 # Dispatch: config strings -> classes
 _ACT  = {"identity": Identity, "sigmoid": Sigmoid, "tanh": Tanh, "relu": ReLU}
 _INIT = {"uniform": Uniform, "glorot": Glorot, "he": He}
 _LOSS = {"mse": MSE}
-_OPT  = {"sgd": SGD, "quickprop": QuickProp}
+_OPT  = {"sgd": SGD, "quickprop": QuickProp, "adagrad": AdaGrad}
 _REG  = {"l2": L2, "l1": L1}
+_LR_SCHEDULERS = {"linear_decay": LinearDecay}
 
 def build_model(config: dict) -> Network:
     """Costruisce una Network FRESCA (pesi + optimizer nuovi) da una config."""
@@ -35,6 +37,12 @@ def build_model(config: dict) -> Network:
     loss = _LOSS[config.get("loss", "mse")]()
 
     opt_cfg  = dict(config["optim"]); opt_type = opt_cfg.pop("type")
+    
+    if "lr" in opt_cfg and isinstance(opt_cfg["lr"], dict):
+        lr_cfg = dict(opt_cfg["lr"])
+        lr_type = lr_cfg.pop("type")
+        opt_cfg["lr"] = _LR_SCHEDULERS[lr_type](**lr_cfg)
+        
     optimizer = _OPT[opt_type](**opt_cfg)
 
     reg = None
