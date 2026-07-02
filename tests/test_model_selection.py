@@ -220,6 +220,45 @@ def test_grid_search_ranks_descending_for_a_higher_is_better_metric():
     assert means == sorted(means, reverse=True)   # descending: highest accuracy (best) first
 
 
+# --- grid_search: optional parallelism (n_jobs) ------------------------------
+
+def test_resolve_workers_maps_n_core_like_sklearn(monkeypatch):
+    """n_core -> worker count: 1/None sequential, -1 all cores, -2 all-but-one,
+    capped at the number of tasks (never spawn idle workers)."""
+    from src.utils import parallel
+    monkeypatch.setattr(parallel.os, "cpu_count", lambda: 8)
+    assert parallel.resolve_workers(1, 100) == 1        # explicit sequential
+    assert parallel.resolve_workers(None, 100) == 1     # default sequential
+    assert parallel.resolve_workers(-1, 100) == 8       # all cores
+    assert parallel.resolve_workers(-2, 100) == 7       # all but one
+    assert parallel.resolve_workers(4, 100) == 4        # fixed count
+    assert parallel.resolve_workers(-1, 3) == 3         # capped at n_tasks
+    assert parallel.resolve_workers(16, 3) == 3         # capped at n_tasks
+
+
+def test_grid_search_parallel_matches_sequential_ranking():
+    """The reproducibility invariant behind parallelization: with the same seed,
+    every config's k-fold CV is identical no matter which process runs it, so
+    n_core>1 must return the SAME ranking as n_core=1 (only the finish order
+    differs, and the final sort erases that)."""
+    grid = {
+        "arch": [[{"units": 4, "act": "tanh", "init": "uniform", "init_kwargs": {"scale": 0.3}},
+                 {"units": 2, "act": "identity", "init": "uniform", "init_kwargs": {"scale": 0.3}}]],
+        "optim": [{"type": "sgd", "lr": 0.1, "momentum": 0.9},
+                  {"type": "sgd", "lr": 0.05, "momentum": 0.9},
+                  {"type": "sgd", "lr": 0.01, "momentum": 0.9}],
+        "reg": [None], "n_inputs": [3], "epochs": [10], "batch_size": [None],
+    }
+    X, Y = regression_data()
+    seq = grid_search(grid, build_model, X, Y, k=3, seed=0, metric="mee", n_core=1)
+    par = grid_search(grid, build_model, X, Y, k=3, seed=0, metric="mee", n_core=2)
+
+    def signature(results):
+        return [(str(r["config"]), round(r["val_mee_mean"], 10)) for r in results]
+
+    assert signature(seq) == signature(par)
+
+
 # --- run_trials: generic scoring + median trial + opt-in early stopping ------
 
 def test_run_trials_summary_uses_the_dynamic_score_name():

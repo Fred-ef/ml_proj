@@ -5,6 +5,7 @@
   "config": {
     "k": 5,
     "seed": 0,
+    "n_core": -1,
     "fixed": {
       "loss": "mse",
       "epochs": 100,
