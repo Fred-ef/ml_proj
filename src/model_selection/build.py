@@ -11,6 +11,7 @@ from ..nn.activations import Identity, Sigmoid, Tanh, ReLU
 from ..nn.initializers import Uniform, Glorot, He
 from ..nn.losses import MSE
 from ..nn.optimizers import SGD, QuickProp
+from ..nn.rates import AdaGrad, LinearDecay
 from ..nn.regularizers import L2, L1
 from ..nn.rates import AdaGrad, LinearDecay
 
@@ -20,7 +21,14 @@ _INIT = {"uniform": Uniform, "glorot": Glorot, "he": He}
 _LOSS = {"mse": MSE}
 _OPT  = {"sgd": SGD, "quickprop": QuickProp, "adagrad": AdaGrad}
 _REG  = {"l2": L2, "l1": L1}
-_LR_SCHEDULERS = {"linear_decay": LinearDecay}
+_LR_SCHEDULES = {"linear_decay": LinearDecay}
+
+
+def _resolve_lr(lr):
+    if isinstance(lr, dict):
+        sched_cfg = dict(lr); sched_type = sched_cfg.pop("type")
+        return _LR_SCHEDULES[sched_type](**sched_cfg)
+    return lr
 
 def build_model(config: dict) -> Network:
     """Costruisce una Network FRESCA (pesi + optimizer nuovi) da una config."""

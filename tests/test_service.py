@@ -79,6 +79,38 @@ def test_unknown_optimizer_type_is_rejected():
         })
 
 
+def test_adagrad_payload_carries_only_its_own_fields():
+    ada = JobRequest(task="monk1", mode="train", config={
+        "arch": [{"units": 2, "act": "tanh"}, {"units": 1, "act": "sigmoid"}],
+        "optim": {"type": "adagrad", "lr": 0.05, "epsilon": 1e-7}, "epochs": 10,
+    }).payload()
+    assert set(ada["optim"]) == {"type", "lr", "epsilon"}
+
+
+def test_sgd_and_adagrad_accept_a_linear_decay_lr_schedule_but_quickprop_does_not():
+    arch = [{"units": 2, "act": "tanh"}, {"units": 1, "act": "sigmoid"}]
+    schedule = {"type": "linear_decay", "eta_0": 0.1, "tau": 20}
+
+    for optim_type in ("sgd", "adagrad"):
+        payload = JobRequest(task="monk1", mode="train", config={
+            "arch": arch, "optim": {"type": optim_type, "lr": schedule}, "epochs": 10,
+        }).payload()
+        assert payload["optim"]["lr"]["type"] == "linear_decay"
+
+    with pytest.raises(Exception):
+        JobRequest(task="monk1", mode="train", config={
+            "arch": arch, "optim": {"type": "quickprop", "lr": schedule}, "epochs": 10,
+        })
+
+
+def test_select_payload_defaults_n_core_to_all_cores_and_accepts_an_override():
+    default = JobRequest(task="monk1", mode="select", select={}).payload()
+    assert default["n_core"] == -1
+
+    overridden = JobRequest(task="monk1", mode="select", select={"n_core": 2}).payload()
+    assert overridden["n_core"] == 2
+
+
 def test_assess_omits_val_fields_when_not_provided_but_keeps_them_when_given():
     base = {"arch": [{"units": 2, "act": "tanh"}, {"units": 1, "act": "sigmoid"}],
            "optim": {"type": "sgd", "lr": 0.1}, "epochs": 10}

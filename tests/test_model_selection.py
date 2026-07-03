@@ -59,6 +59,40 @@ def classification_config(**overrides):
     return cfg
 
 
+# --- build_model: optimizer dispatch beyond sgd/quickprop --------------------
+
+def test_build_model_wires_adagrad_and_its_kwargs():
+    from src.nn.rates import AdaGrad
+    cfg = classification_config(optim={"type": "adagrad", "lr": 0.05, "epsilon": 1e-6})
+    model = build_model(cfg)
+    assert isinstance(model.optimizer, AdaGrad)
+    assert model.optimizer.lr == 0.05
+    assert model.optimizer.epsilon == 1e-6
+
+
+def test_build_model_resolves_a_linear_decay_lr_schedule_for_sgd_and_adagrad():
+    from src.nn.rates import LinearDecay
+    for optim_type in ("sgd", "adagrad"):
+        cfg = classification_config(optim={"type": optim_type,
+                                           "lr": {"type": "linear_decay", "eta_0": 0.2, "tau": 5, "eta_tau": 0.02}})
+        model = build_model(cfg)
+        assert isinstance(model.optimizer.lr, LinearDecay)
+        assert model.optimizer.lr.eta_0 == 0.2
+        assert model.optimizer.lr.tau == 5
+        assert model.optimizer.lr.eta_tau == 0.02
+
+
+def test_scheduled_lr_object_receives_steps_per_epoch_from_fit():
+    X, y = classification_data()
+    cfg = classification_config(optim={"type": "sgd", "momentum": 0.0,
+                                       "lr": {"type": "linear_decay", "eta_0": 0.3, "tau": 2}},
+                                epochs=2, batch_size=10)
+    model = build_model(cfg)
+    assert model.optimizer.lr.steps_per_epoch == 1   # default, before any fit() call
+    model.fit(X, y, epochs=cfg["epochs"], batch_size=cfg["batch_size"])
+    assert model.optimizer.lr.steps_per_epoch == 3    # 30 samples / batch_size 10
+
+
 # --- METRICS registry (the single source of truth for name -> fn/direction) --
 
 def test_metrics_registry_binds_name_to_function_and_direction():
@@ -80,10 +114,9 @@ def test_cross_validate_default_metric_is_loss():
 
 
 # --- cross_validate: metric-directed epoch pick (deterministic, no training) -
-# Network.fit is stubbed to return a fixed history curve so these pin the
+# fit is stubbed to return a fixed history curve so these pin the
 # argmax/argmin direction logic itself, independent of whether the tiny net
-# actually converges. This is the exact bug class that slipped through before:
-# selecting on val_loss regardless of which metric was requested.
+# actually converges
 
 def test_cross_validate_picks_the_max_epoch_for_a_higher_is_better_metric(monkeypatch):
     fixed_history = {
@@ -237,10 +270,8 @@ def test_resolve_workers_maps_n_core_like_sklearn(monkeypatch):
 
 
 def test_grid_search_parallel_matches_sequential_ranking():
-    """The reproducibility invariant behind parallelization: with the same seed,
-    every config's k-fold CV is identical no matter which process runs it, so
-    n_core>1 must return the SAME ranking as n_core=1 (only the finish order
-    differs, and the final sort erases that)."""
+    """reproducibility invariant: same seed -> same rankings
+       n_core>1 must return the SAME ranking as n_core=1"""
     grid = {
         "arch": [[{"units": 4, "act": "tanh", "init": "uniform", "init_kwargs": {"scale": 0.3}},
                  {"units": 2, "act": "identity", "init": "uniform", "init_kwargs": {"scale": 0.3}}]],
@@ -286,9 +317,7 @@ def test_run_trials_representative_trial_is_the_median_by_score():
 
 
 def test_run_trials_early_stopping_is_opt_in(monkeypatch):
-    """Regression test: run_trials used to build EarlyStopping(patience=10) even
-    when no 'patience' was requested, silently truncating training. It must now
-    match cross_validate's convention: no 'patience' key => no early stopping."""
+    """Regression test: no 'patience' key => no early stopping"""
     seen_early_stopping = []
     original_fit = Network.fit
 
