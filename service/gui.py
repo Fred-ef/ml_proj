@@ -107,32 +107,60 @@ class ArchSection:
 
 
 class OptimSection:
-    """sgd and quickprop take disjoint kwargs (service/schemas.py's discriminated
-    union) — the two field groups are mutually exclusive here for the same reason."""
 
     def __init__(self) -> None:
         with ui.row().classes("items-end gap-2"):
-            self.type = ui.select(["sgd", "quickprop"], label="optimizer", value="sgd").classes("w-32")
-            self.lr = ui.number("lr", value=0.1, min=0.0, step=0.01).classes("w-24")
+            self.type = ui.select(["sgd", "quickprop", "adagrad"], label="optimizer", value="sgd").classes("w-32")
+            self.lr = ui.number("lr (eta_0 se scheduling)", value=0.1, min=0.0, step=0.01).classes("w-40")
             self.momentum = ui.number("momentum", value=0.9, min=0.0, max=1.0, step=0.05).classes("w-28")
             self.nesterov = ui.checkbox("nesterov")
             self.mu = ui.number("mu", value=1.75, min=0.0, step=0.05).classes("w-24")
+            self.epsilon = ui.number("epsilon", value=1e-8, min=0.0, step=1e-9).classes("w-32")
+        with ui.row().classes("items-end gap-2") as self.schedule_row:
+            self.scheduled = ui.checkbox("lr scheduling (linear decay)")
+            self.tau = ui.number("tau (step)", value=50, min=1, precision=0).classes("w-28")
+            self.eta_tau = ui.number("eta_tau (vuoto = 1% di lr)", value=None, min=0.0, step=0.001).classes("w-48")
         self.momentum.bind_visibility_from(self.type, "value", backward=lambda v: v == "sgd")
         self.nesterov.bind_visibility_from(self.type, "value", backward=lambda v: v == "sgd")
         self.mu.bind_visibility_from(self.type, "value", backward=lambda v: v == "quickprop")
+        self.epsilon.bind_visibility_from(self.type, "value", backward=lambda v: v == "adagrad")
+        self.schedule_row.bind_visibility_from(self.type, "value", backward=lambda v: v in ("sgd", "adagrad"))
+        self.tau.bind_visibility_from(self.scheduled, "value", backward=lambda v: bool(v))
+        self.eta_tau.bind_visibility_from(self.scheduled, "value", backward=lambda v: bool(v))
+
+    def _lr(self) -> Any:
+        lr_value = float(self.lr.value or 0.1)
+        if self.scheduled.value and self.type.value in ("sgd", "adagrad"):
+            lr: dict = {"type": "linear_decay", "eta_0": lr_value, "tau": int(self.tau.value or 50)}
+            if self.eta_tau.value not in (None, ""):
+                lr["eta_tau"] = float(self.eta_tau.value)
+            return lr
+        return lr_value
 
     def to_dict(self) -> dict:
         if self.type.value == "quickprop":
             return {"type": "quickprop", "lr": float(self.lr.value or 0.1), "mu": float(self.mu.value or 1.75)}
-        return {"type": "sgd", "lr": float(self.lr.value or 0.1),
+        if self.type.value == "adagrad":
+            return {"type": "adagrad", "lr": self._lr(), "epsilon": float(self.epsilon.value or 1e-8)}
+        return {"type": "sgd", "lr": self._lr(),
                 "momentum": float(self.momentum.value or 0.0), "nesterov": bool(self.nesterov.value)}
 
     def load(self, optim: dict) -> None:
         t = optim.get("type", "sgd")
         self.type.value = t
-        self.lr.value = optim.get("lr", 0.1)
+        lr = optim.get("lr", 0.1)
+        if isinstance(lr, dict):
+            self.scheduled.value = True
+            self.lr.value = lr.get("eta_0", 0.1)
+            self.tau.value = lr.get("tau", 50)
+            self.eta_tau.value = lr.get("eta_tau")
+        else:
+            self.scheduled.value = False
+            self.lr.value = lr
         if t == "quickprop":
             self.mu.value = optim.get("mu", 1.75)
+        elif t == "adagrad":
+            self.epsilon.value = optim.get("epsilon", 1e-8)
         else:
             self.momentum.value = optim.get("momentum", 0.9)
             self.nesterov.value = optim.get("nesterov", False)
@@ -356,6 +384,8 @@ class SelectForm:
             with ui.row().classes("gap-4"):
                 self.k = ui.number("k (fold)", value=5, min=2, precision=0).classes("w-28")
                 self.seed = ui.number("seed (vuoto = random)", value=0, precision=0).classes("w-44")
+                self.n_core = ui.number("n_core (-1 = tutti i core, 1 = sequenziale)",
+                                        value=-1, precision=0).classes("w-64")
             ui.separator()
             ui.label("Architettura — 1 valore = fissa, più valori = griglia da confrontare").classes("text-bold")
             self.arch = AxisList(ArchCandidate, add_label="+ architettura", default=_DEFAULT_ARCH)
@@ -407,7 +437,8 @@ class SelectForm:
             omit_none_singleton=True)
         put("min_delta", [float(v) if v is not None else 0.0 for v in self.min_delta.values()])
 
-        cfg: dict = {"k": int(self.k.value or 5), "fixed": fixed, "grid": grid}
+        cfg: dict = {"k": int(self.k.value or 5), "n_core": int(self.n_core.value or -1),
+                    "fixed": fixed, "grid": grid}
         if self.seed.value not in (None, ""):
             cfg["seed"] = int(self.seed.value)
         return cfg
@@ -415,6 +446,7 @@ class SelectForm:
     def load(self, cfg: dict) -> None:
         self.k.value = cfg.get("k", 5)
         self.seed.value = cfg.get("seed")
+        self.n_core.value = cfg.get("n_core", -1)
         fixed, grid = cfg.get("fixed", {}), cfg.get("grid", {})
 
         def axis_values(key: str, default: Any) -> list:

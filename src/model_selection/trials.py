@@ -15,6 +15,7 @@ import numpy as np
 
 from .build import build_model
 from .early_stopping import EarlyStopping
+from ..data.preprocessing import StandardScaler
 
 
 def run_trials(config: dict, X_tr, y_tr, X_te, y_te, metrics: dict,
@@ -26,6 +27,21 @@ def run_trials(config: dict, X_tr, y_tr, X_te, y_te, metrics: dict,
     test_score, train_score, histories = [], [], []
     for i in range(n_trials):
         cfg_i = {**config, "seed": base_seed + i}
+        
+        # Facciamo una copia locale dei dati in modo che i fold/trial siano indipendenti
+        X_tr_i, y_tr_i = np.copy(X_tr), np.copy(y_tr)
+        X_te_i, y_te_i = np.copy(X_te), np.copy(y_te)
+        scaler_Y = None
+        
+        if config.get("scale", False):
+            scaler_X = StandardScaler()
+            X_tr_i = scaler_X.fit_transform(X_tr_i)
+            X_te_i = scaler_X.transform(X_te_i)
+            
+            scaler_Y = StandardScaler()
+            y_tr_i = scaler_Y.fit_transform(y_tr_i)
+            y_te_i = scaler_Y.transform(y_te_i)
+
         model = build_model(cfg_i)
 
         # Opt-in, like cross_validate: no "patience" in config => no early
@@ -34,13 +50,24 @@ def run_trials(config: dict, X_tr, y_tr, X_te, y_te, metrics: dict,
         es = (EarlyStopping(patience=patience, min_delta=cfg_i.get("min_delta", 0.0))
               if patience is not None else None)
 
-        history = model.fit(X_tr, y_tr, epochs=cfg_i["epochs"],
+        history = model.fit(X_tr_i, y_tr_i, epochs=cfg_i["epochs"],
                             batch_size=cfg_i.get("batch_size"),
-                            validation_data=(X_te, y_te), metrics=metrics,
+                            validation_data=(X_te_i, y_te_i), metrics=metrics,
                             early_stopping=es)
 
-        pred_tr, pred_te = model.predict(X_tr), model.predict(X_te)
-        s_tr, s_te = score_fn(pred_tr, y_tr), score_fn(pred_te, y_te)
+        pred_tr, pred_te = model.predict(X_tr_i), model.predict(X_te_i)
+        
+        # Se abbiamo scalato le Y, per calcolare il vero score_fn (MEE) dobbiamo 
+        # invertire la trasformazione per tornare alla scala originale.
+        if scaler_Y is not None:
+            pred_tr = scaler_Y.inverse_transform(pred_tr)
+            pred_te = scaler_Y.inverse_transform(pred_te)
+            y_tr_curr = scaler_Y.inverse_transform(y_tr_i)
+            y_te_curr = scaler_Y.inverse_transform(y_te_i)
+        else:
+            y_tr_curr, y_te_curr = y_tr_i, y_te_i
+
+        s_tr, s_te = score_fn(pred_tr, y_tr_curr), score_fn(pred_te, y_te_curr)
         train_score.append(s_tr); test_score.append(s_te); histories.append(history)
 
     test_score, train_score = np.array(test_score), np.array(train_score)

@@ -20,9 +20,22 @@ class LayerSpec(BaseModel):
     init_kwargs: dict[str, Any] = Field(default_factory=dict)
 
 
+class LinearDecaySpec(BaseModel):
+
+    type: Literal["linear_decay"] = "linear_decay"
+    eta_0: float = Field(gt=0)
+    tau: int = Field(gt=0)
+    eta_tau: Optional[float] = Field(default=None, ge=0)
+
+
+# lr is either a plain positive number or a schedule dict — the numeric branch
+# carries its own `gt=0` since Pydantic can't apply a bare constraint across a Union.
+LrSpec = Union[Annotated[float, Field(gt=0)], LinearDecaySpec]
+
+
 class SgdSpec(BaseModel):
     type: Literal["sgd"] = "sgd"
-    lr: float = Field(gt=0)
+    lr: LrSpec
     momentum: float = Field(0.0, ge=0, le=1)
     nesterov: bool = False
 
@@ -33,7 +46,13 @@ class QuickPropSpec(BaseModel):
     mu: float = Field(1.75, gt=0)
 
 
-OptimSpec = Annotated[Union[SgdSpec, QuickPropSpec], Field(discriminator="type")]
+class AdaGradSpec(BaseModel):
+    type: Literal["adagrad"] = "adagrad"
+    lr: LrSpec = 0.01
+    epsilon: float = Field(1e-8, gt=0)
+
+
+OptimSpec = Annotated[Union[SgdSpec, QuickPropSpec, AdaGradSpec], Field(discriminator="type")]
 
 
 class RegSpec(BaseModel):
@@ -67,15 +86,11 @@ class AssessConfig(TrainConfig):
 class SelectConfig(BaseModel):
     """Payload for mode=select
 
-    `grid` axis values are intentionally left as `Any`: an axis can hold full
-    layer-list architectures, optimizer dicts, regularizer dicts, or plain
-    scalars (e.g. sweeping epochs itself) — iter_grid's cartesian product
-    doesn't care, and forcing a rigid per-axis schema here would fight that
-    flexibility for little gain
     """
 
     k: int = Field(5, gt=0)
     seed: Optional[int] = None
+    n_core: Optional[int] = -1
     fixed: dict[str, Any] = Field(default_factory=dict)
     grid: dict[str, list[Any]] = Field(default_factory=dict)
 
