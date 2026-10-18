@@ -18,6 +18,10 @@ class AdaGrad(Optimizer):
     """
 
     def __init__(self, lr: float | Callable = 0.01, epsilon: float = 1e-8) -> None:
+        if not callable(lr) and (isinstance(lr, bool) or lr <= 0):
+            raise ValueError("lr must be positive")
+        if epsilon <= 0:
+            raise ValueError("epsilon must be positive")
         self.lr = lr
         self.epsilon = epsilon
         self.squared_grads = None
@@ -56,6 +60,12 @@ class LinearDecay:
     """
 
     def __init__(self, eta_0: float, tau: int, eta_tau: float | None = None) -> None:
+        if eta_0 <= 0:
+            raise ValueError("eta_0 must be positive")
+        if isinstance(tau, bool) or not isinstance(tau, int) or tau <= 0:
+            raise ValueError("tau must be a positive integer")
+        if eta_tau is not None and eta_tau < 0:
+            raise ValueError("eta_tau must be non-negative")
         self.eta_0 = eta_0
         self.tau = tau
         self.eta_tau = eta_tau if eta_tau is not None else 0.01 * eta_0

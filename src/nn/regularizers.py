@@ -14,6 +14,8 @@ class Regularizer:
     """Base class. ``lam`` is the regularization coefficient (lambda)."""
 
     def __init__(self, lam: float = 0.0) -> None:
+        if lam < 0:
+            raise ValueError("lam must be non-negative")
         self.lam = lam
 
     def penalty(self, weights: np.ndarray) -> float:

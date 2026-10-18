@@ -30,6 +30,10 @@ def resolve_workers(n_core: int | None, n_tasks: int) -> int:
     - -1 => all cores
     - -2 => all but one core
     """
+    if n_tasks < 0:
+        raise ValueError("n_tasks must be non-negative")
+    if n_core == 0 or (n_core is not None and n_core < -2):
+        raise ValueError("n_core must be None, -2, -1, or a positive integer")
     if n_core in (None, 1):
         return 1
     cpu = os.cpu_count() or 1
@@ -41,7 +45,8 @@ def parallel_map(func: Callable, arg_tuples: Sequence[tuple], n_core: int | None
                  on_result: Callable[[int, object], None] | None = None) -> list:
     """Apply func(*args) for every args in arg_tuples across processes
 
-    Returns the results in COMPLETION order.
+    Returns the results in INPUT order. Progress callbacks still run in
+    completion order.
     if given, on_result(done, result) is invoked after each task for
     progress reporting
 
@@ -66,13 +71,13 @@ def parallel_map(func: Callable, arg_tuples: Sequence[tuple], n_core: int | None
         os.environ.setdefault(var, "1")
     ctx = get_context("spawn")
 
-    results, done = [], 0
+    results, done = [None] * len(arg_tuples), 0
     with ProcessPoolExecutor(max_workers=workers, mp_context=ctx) as pool:
-        futures = [pool.submit(func, *args) for args in arg_tuples]
-        for fut in as_completed(futures):     # finish order
+        futures = {pool.submit(func, *args): i for i, args in enumerate(arg_tuples)}
+        for fut in as_completed(futures):     # progress in finish order
             result = fut.result()
             done += 1
-            results.append(result)
+            results[futures[fut]] = result
             if on_result:
                 on_result(done, result)
     return results

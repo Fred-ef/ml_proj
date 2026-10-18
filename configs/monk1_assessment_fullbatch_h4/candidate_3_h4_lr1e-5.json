@@ -1,0 +1,31 @@
+{
+  "task": "monk1",
+  "mode": "assess",
+  "tag": "assessment-fullbatch-h4-lr1e-5-1ep",
+  "config": {
+    "loss": "mse",
+    "epochs": 1,
+    "batch_size": null,
+    "arch": [
+      {
+        "units": 4,
+        "act": "tanh",
+        "init": "glorot"
+      },
+      {
+        "units": 1,
+        "act": "sigmoid",
+        "init": "glorot"
+      }
+    ],
+    "optim": {
+      "type": "sgd",
+      "lr": 0.00001
+    },
+    "reg": null,
+    "seed": 7777777,
+    "n_trials": 5,
+    "val_mean": 0.72,
+    "val_std": null
+  }
+}

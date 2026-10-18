@@ -3,7 +3,7 @@
 - Selection metrics registry (name -> function + "better" direction)
 - cross_validate's metric-directed epoch pick
 - grid_search's declarative nested grid
-- run_trials' seed aggregation + early stopping
+- run_trials' seed aggregation without test-set leakage
 
 Run from the project root: pytest tests/test_model_selection.py -v
 """
@@ -14,7 +14,8 @@ import pytest
 from src.nn.network import Network
 from src.utils.metrics import METRICS, mee, mse, accuracy
 from src.model_selection.build import build_model
-from src.model_selection.kfold import cross_validate
+from src.model_selection.kfold import (cross_validate, holdout_indices,
+                                       holdout_validate, kfold_indices)
 from src.model_selection.grid_search import iter_grid, grid_search
 from src.model_selection.trials import run_trials
 
@@ -113,6 +114,62 @@ def test_cross_validate_default_metric_is_loss():
                            "train_loss_std", "best_epoch_median", "best_epochs"}
 
 
+def test_holdout_uses_one_reproducible_disjoint_split():
+    train, val = holdout_indices(30, 0.2, seed=42)
+    train_again, val_again = holdout_indices(30, 0.2, seed=42)
+    assert len(train) == 24 and len(val) == 6
+    assert set(train).isdisjoint(val)
+    assert set(train) | set(val) == set(range(30))
+    assert np.array_equal(train, train_again)
+    assert np.array_equal(val, val_again)
+
+
+def test_stratified_holdout_preserves_class_proportions_and_seed():
+    labels = np.array([0] * 70 + [1] * 30).reshape(-1, 1)
+    train, val = holdout_indices(100, 0.2, seed=42, labels=labels)
+    train_again, val_again = holdout_indices(100, 0.2, seed=42, labels=labels)
+    assert len(train) == 80 and len(val) == 20
+    assert set(train).isdisjoint(val)
+    np.testing.assert_array_equal(np.bincount(labels[val, 0]), [14, 6])
+    np.testing.assert_array_equal(np.bincount(labels[train, 0]), [56, 24])
+    np.testing.assert_array_equal(train, train_again)
+    np.testing.assert_array_equal(val, val_again)
+
+
+def test_stratified_kfold_preserves_class_proportions():
+    labels = np.array([0] * 70 + [1] * 30).reshape(-1, 1)
+    folds = list(kfold_indices(100, 5, seed=42, labels=labels))
+    assert len(folds) == 5
+    for train, val in folds:
+        assert set(train).isdisjoint(val)
+        np.testing.assert_array_equal(np.bincount(labels[val, 0]), [14, 6])
+    assert set(np.concatenate([val for _, val in folds])) == set(range(100))
+
+
+def test_stratification_rejects_classes_too_small_for_split():
+    labels = np.array([0] * 9 + [1]).reshape(-1, 1)
+    with pytest.raises(ValueError, match="each class"):
+        holdout_indices(10, 0.2, seed=42, labels=labels)
+
+
+def test_holdout_validate_fits_once_and_has_no_fold_std(monkeypatch):
+    calls = []
+    original_fit = Network.fit
+
+    def spy_fit(self, *args, **kwargs):
+        calls.append((len(args[0]), len(kwargs["validation_data"][0])))
+        return original_fit(self, *args, **kwargs)
+
+    monkeypatch.setattr(Network, "fit", spy_fit)
+    X, y = classification_data(n=30)
+    result = holdout_validate(build_model, classification_config(epochs=3), X, y,
+                              validation_fraction=0.2, seed=42, metric="acc")
+    assert calls == [(24, 6)]
+    assert 0 <= result["val_acc_mean"] <= 1
+    assert result["val_acc_std"] is None
+    assert len(result["best_epochs"]) == 1
+
+
 # --- cross_validate: metric-directed epoch pick (deterministic, no training) -
 # fit is stubbed to return a fixed history curve so these pin the
 # argmax/argmin direction logic itself, independent of whether the tiny net
@@ -208,6 +265,50 @@ def test_a_grid_combo_is_directly_build_model_ready_no_bridge_needed():
     assert net.layers[0].n_in == 3 and net.layers[-1].n_out == 2
 
 
+def test_compact_architecture_grid_builds_all_requested_depths_and_widths():
+    grid = {
+        "arch": {
+            "hidden_layers": [1, 2],
+            "units_1": [1, 4, 8],
+            "units_2": [1, 4],
+            "hidden": {"act": "tanh", "init": "glorot"},
+            "output": {"units": 1, "act": "sigmoid", "init": "glorot"},
+        },
+        "optim": [{"type": "sgd", "lr": {
+            "space": "log", "start": 1e-5, "stop": 0.1, "num": 3,
+        }}],
+        "n_inputs": [17],
+        "loss": ["mse"],
+    }
+    configs = list(iter_grid(grid))
+    assert len(configs) == 27
+    assert [tuple(layer["units"] for layer in cfg["arch"][:-1])
+            for cfg in configs[::3]] == [
+                (1,), (4,), (8,),
+                (1, 1), (1, 4), (4, 1), (4, 4), (8, 1), (8, 4),
+            ]
+    np.testing.assert_allclose([cfg["optim"]["lr"] for cfg in configs[:3]],
+                               [1e-5, 1e-3, 0.1])
+    assert all(layer["act"] == "tanh" and layer["init"] == "glorot"
+               for cfg in configs for layer in cfg["arch"][:-1])
+    assert all(cfg["arch"][-1] == {"units": 1, "act": "sigmoid", "init": "glorot"}
+               for cfg in configs)
+    assert len(build_model(configs[-1]).layers) == 3
+
+
+@pytest.mark.parametrize("invalid", [
+    {"hidden_layers": [1, 2], "units_1": [1], "hidden": {"act": "tanh", "init": "glorot"},
+     "output": {"units": 1, "act": "sigmoid", "init": "glorot"}},
+    {"hidden_layers": [1], "units_1": [0], "hidden": {"act": "tanh", "init": "glorot"},
+     "output": {"units": 1, "act": "sigmoid", "init": "glorot"}},
+    {"hidden_layers": [3], "units_1": [1], "hidden": {"act": "tanh", "init": "glorot"},
+     "output": {"units": 1, "act": "sigmoid", "init": "glorot"}},
+])
+def test_compact_architecture_grid_rejects_invalid_axes(invalid):
+    with pytest.raises(ValueError, match=r"arch\."):
+        list(iter_grid({"arch": invalid}))
+
+
 def test_grid_search_supports_variable_architecture_depth():
     """1 vs >=2 hidden layers as a grid axis (F5 requirement) — no special-casing."""
     grid = {
@@ -225,6 +326,23 @@ def test_grid_search_supports_variable_architecture_depth():
     results = grid_search(grid, build_model, X, Y, k=2, seed=0, metric="mee")
     depths = sorted(len(r["config"]["arch"]) for r in results)
     assert depths == [2, 3]
+
+
+def test_grid_expands_nested_log_range_for_learning_rate():
+    grid = {"optim": [{"type": "sgd", "lr": {
+        "space": "log", "start": 0.1, "stop": 1e-5, "num": 5,
+    }}]}
+    rates = [config["optim"]["lr"] for config in iter_grid(grid)]
+    np.testing.assert_allclose(rates, [0.1, 0.01, 0.001, 0.0001, 1e-5])
+
+
+@pytest.mark.parametrize("start,stop,num", [(0, 0.1, 5), (-1, 0.1, 5),
+                                               (0.1, 0.01, 1)])
+def test_grid_rejects_invalid_log_range(start, stop, num):
+    with pytest.raises(ValueError, match="log range"):
+        list(iter_grid({"optim": [{"lr": {
+            "space": "log", "start": start, "stop": stop, "num": num,
+        }}]}))
 
 
 def test_grid_search_ranks_ascending_for_a_lower_is_better_metric():
@@ -267,6 +385,10 @@ def test_resolve_workers_maps_n_core_like_sklearn(monkeypatch):
     assert parallel.resolve_workers(4, 100) == 4        # fixed count
     assert parallel.resolve_workers(-1, 3) == 3         # capped at n_tasks
     assert parallel.resolve_workers(16, 3) == 3         # capped at n_tasks
+    with pytest.raises(ValueError, match="n_core"):
+        parallel.resolve_workers(0, 3)
+    with pytest.raises(ValueError, match="n_core"):
+        parallel.resolve_workers(-3, 3)
 
 
 def test_grid_search_parallel_matches_sequential_ranking():
@@ -290,7 +412,7 @@ def test_grid_search_parallel_matches_sequential_ranking():
     assert signature(seq) == signature(par)
 
 
-# --- run_trials: generic scoring + median trial + opt-in early stopping ------
+# --- run_trials: generic scoring without test-set leakage --------------------
 
 def test_run_trials_summary_uses_the_dynamic_score_name():
     X, Y = regression_data()
@@ -305,35 +427,47 @@ def test_run_trials_summary_uses_the_dynamic_score_name():
     assert 0 <= summary["representative_trial"] < 3
 
 
-def test_run_trials_representative_trial_is_the_median_by_score():
+def test_run_trials_representative_trial_is_the_median_by_training_score():
     X, Y = regression_data()
     Xte, Yte = regression_data(seed=1)
     cfg = regression_config(epochs=10, n_trials=5)
-    summary, _ = run_trials(cfg, X, Y, Xte, Yte, metrics={}, score_fn=mee, score_name="mee")
+    summary, histories = run_trials(
+        cfg, X, Y, Xte, Yte, metrics={"mee": mee}, score_fn=mee, score_name="mee"
+    )
 
-    scores = summary["per_trial_mee"]
+    scores = [history["mee"][-1] for history in histories]
     rep = summary["representative_trial"]
     assert scores[rep] == sorted(scores)[len(scores) // 2]
 
 
-def test_run_trials_early_stopping_is_opt_in(monkeypatch):
-    """Regression test: no 'patience' key => no early stopping"""
-    seen_early_stopping = []
+def test_run_trials_never_uses_the_test_set_during_fit(monkeypatch):
+    """Assessment must not use the test set for validation or early stopping."""
+    fit_calls = []
     original_fit = Network.fit
 
     def spy_fit(self, *args, **kwargs):
-        seen_early_stopping.append(kwargs.get("early_stopping"))
+        fit_calls.append(kwargs.copy())
         return original_fit(self, *args, **kwargs)
 
     monkeypatch.setattr(Network, "fit", spy_fit)
     X, Y = regression_data()
     Xte, Yte = regression_data(seed=1)
 
-    run_trials(regression_config(epochs=5, n_trials=2), X, Y, Xte, Yte,
-              metrics={}, score_fn=mee, score_name="mee")
-    assert all(es is None for es in seen_early_stopping), "no 'patience' in config => no early stopping"
+    _, histories = run_trials(
+        regression_config(epochs=5, n_trials=2),
+        X, Y, Xte, Yte, metrics={}, score_fn=mee, score_name="mee",
+    )
 
-    seen_early_stopping.clear()
-    run_trials(regression_config(epochs=5, n_trials=2, patience=3), X, Y, Xte, Yte,
-              metrics={}, score_fn=mee, score_name="mee")
-    assert all(es is not None for es in seen_early_stopping), "'patience' in config => early stopping wired"
+    assert len(fit_calls) == 2
+    assert all(call.get("validation_data") is None for call in fit_calls)
+    assert all(call.get("early_stopping") is None for call in fit_calls)
+    assert all(len(history["loss"]) == 5 for history in histories)
+
+
+def test_run_trials_rejects_early_stopping_controls():
+    X, Y = regression_data()
+    with pytest.raises(ValueError, match="early stopping is not allowed"):
+        run_trials(
+            regression_config(epochs=5, patience=1),
+            X, Y, X, Y, metrics={}, score_fn=mee, score_name="mee",
+        )

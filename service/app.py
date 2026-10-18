@@ -25,6 +25,18 @@ RESULTS = ROOT / "results"
 app = FastAPI(title="ml_proj experiment service", version="0.1")
 
 
+def _run_dir(task: str, run_id: str) -> Path:
+    """Resolve a run below RESULTS without accepting path traversal."""
+
+    try:
+        get_task(task)
+    except ValueError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    if not run_id or run_id in {".", ".."} or "/" in run_id or "\\" in run_id:
+        raise HTTPException(404, "run not found")
+    return RESULTS / task / run_id
+
+
 # --------------------------------------------------------------- jobs (write)
 @app.post("/jobs", status_code=202)
 def create_job(req: JobRequest) -> dict:
@@ -61,6 +73,10 @@ def job_status(job_id: str) -> dict:
 # --------------------------------------------------------- runs (read results/)
 @app.get("/runs")
 def list_runs(task: str) -> Response:
+    try:
+        get_task(task)
+    except ValueError as exc:
+        raise HTTPException(404, str(exc)) from exc
     index = RESULTS / task / "index.jsonl"
     if not index.exists():
         return Response(content="[]", media_type="application/json")
@@ -70,7 +86,7 @@ def list_runs(task: str) -> Response:
 
 @app.get("/runs/{task}/{run_id}")
 def get_run(task: str, run_id: str) -> dict:
-    run_dir = RESULTS / task / run_id
+    run_dir = _run_dir(task, run_id)
     if not run_dir.exists():
         raise HTTPException(404, "run not found")
     return {
@@ -81,7 +97,7 @@ def get_run(task: str, run_id: str) -> dict:
 
 @app.get("/runs/{task}/{run_id}/plot")
 def get_plot(task: str, run_id: str) -> FileResponse:
-    png = RESULTS / task / run_id / "learning_curve.png"
+    png = _run_dir(task, run_id) / "learning_curve.png"
     if not png.exists():
         raise HTTPException(404, "no plot for this run (select mode has no single curve)")
     return FileResponse(png)

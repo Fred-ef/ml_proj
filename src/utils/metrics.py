@@ -11,19 +11,30 @@ from __future__ import annotations
 import numpy as np
 
 
+def _validate_shapes(y_pred: np.ndarray, y_true: np.ndarray) -> None:
+    if y_pred.shape != y_true.shape:
+        raise ValueError(
+            f"y_pred and y_true must have the same shape; "
+            f"got {y_pred.shape} and {y_true.shape}"
+        )
+
+
 def mee(y_pred: np.ndarray, y_true: np.ndarray) -> float:
     """Mean Euclidean Error over patterns"""
+    _validate_shapes(y_pred, y_true)
     distance_per_pattern = np.sqrt(np.sum((y_pred - y_true) ** 2, axis=1))
     return float(np.mean(distance_per_pattern))
 
 
 def mse(y_pred: np.ndarray, y_true: np.ndarray) -> float:
     """Mean Squared Error."""
+    _validate_shapes(y_pred, y_true)
     return float(np.mean((y_pred - y_true) ** 2))
 
 
 def accuracy(y_pred: np.ndarray, y_true: np.ndarray, threshold: float = 0.5) -> float:
     """Binary accuracy for MONK."""
+    _validate_shapes(y_pred, y_true)
     predicted = (y_pred >= threshold)
     target = (y_true >= 0.5) # targets are already binary
     return float(np.mean(predicted == target))

@@ -24,6 +24,8 @@ class Uniform(Initializer):
     """Symmetric uniform init in [-scale, +scale]. Use a small scale for MONK."""
 
     def __init__(self, scale: float = 0.1) -> None:
+        if not np.isscalar(scale) or isinstance(scale, (bool, np.bool_)) or scale <= 0:
+            raise ValueError("scale must be a positive number")
         self.scale = scale
 
     def __call__(self, n_in: int, n_out: int, rng: np.random.Generator) -> np.ndarray:

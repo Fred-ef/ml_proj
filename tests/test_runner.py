@@ -14,6 +14,12 @@ import numpy as np
 import pytest
 
 from src.utils.metrics import METRICS, accuracy
+from src.data.cup import (
+    CUP_INTERNAL_TEST_FRAC,
+    CUP_INTERNAL_TEST_SEED,
+    cup_design_test_split,
+    load_cup_train,
+)
 from runner.registry import TASKS, get_task, _profile
 from runner.engine import run_experiment, _is_index_scalar
 
@@ -30,7 +36,7 @@ def test_all_registered_tasks_derive_from_the_metrics_registry():
 
 
 def test_profile_helper_derives_consistently_from_a_metric_name():
-    p = _profile("toy", 5, lambda root: None, "acc")
+    p = _profile("toy", 5, 1, lambda root: None, "acc")
     assert p.metrics == {"acc": accuracy}
     assert p.primary == "acc"
     assert p.goal == "max"
@@ -103,6 +109,8 @@ def test_run_experiment_select_then_assess_chain(tmp_path):
     assert select_summary["metric"] == "acc"
     assert {"val_mean", "val_std", "best_epoch_median", "best_config", "ranking"} <= set(select_summary)
     assert len(select_summary["ranking"]) == select_summary["n_configs"] == 1
+    assert select_summary["best_config"]["epochs"] == select_summary["best_epoch_median"]
+    assert not ({"n_inputs", "patience", "min_delta", "monitor"} & select_summary["best_config"].keys())
 
     # exactly the handoff documented in F4-EXTRA: copy val_mean/val_std and
     # best_epoch_median straight from the select summary into the assess payload
@@ -118,6 +126,78 @@ def test_run_experiment_select_then_assess_chain(tmp_path):
 
     assert {"acc_tr_mean", "acc_ts_mean", "acc_vl_mean"} <= set(assess_summary)
     assert assess_summary["acc_vl_mean"] == select_summary["val_mean"]
+
+
+def test_run_experiment_select_with_single_holdout(tmp_path):
+    payload = {
+        "validation_fraction": 0.2, "seed": 42, "n_core": 1,
+        "fixed": {"loss": "mse", "epochs": 3, "batch_size": None},
+        "grid": {
+            "arch": [[{"units": 2, "act": "tanh", "init": "glorot"},
+                      {"units": 1, "act": "sigmoid", "init": "glorot"}]],
+            "optim": [{"type": "sgd", "lr": 0.1}],
+            "reg": [None],
+        },
+    }
+    run_dir = run_experiment("monk1", "select", payload,
+                             tag="pytest-holdout", results_root=tmp_path)
+    summary = json.loads((run_dir / "summary.json").read_text())
+    assert summary["selection_method"] == "holdout"
+    assert summary["validation_fraction"] == 0.2
+    assert summary["n_configs"] == 1
+    assert summary["val_std"] is None
+    report = (run_dir / "selection_report.txt").read_text(encoding="utf-8")
+    assert "single holdout (20% validation)" in report
+    assert "mean val acc" in report
+    assert "hidden 1: 2 (tanh, glorot)" in report
+
+
+def test_select_auto_seed_is_new_each_run_and_saved(tmp_path, monkeypatch):
+    import runner.engine as engine
+    import src.model_selection.kfold as kfold
+
+    generated = iter([12345, 67890])
+    monkeypatch.setattr(engine.secrets, "randbits", lambda bits: next(generated))
+    splits = []
+    original_holdout_indices = kfold.holdout_indices
+
+    def record_holdout(n_samples, validation_fraction, seed=None, labels=None):
+        train_idx, val_idx = original_holdout_indices(
+            n_samples, validation_fraction, seed, labels=labels)
+        splits.append((seed, val_idx.copy()))
+        return train_idx, val_idx
+
+    monkeypatch.setattr(kfold, "holdout_indices", record_holdout)
+    payload = {
+        "validation_fraction": 0.2, "seed": "auto", "split_seed": 42,
+        "n_core": 1,
+        "fixed": {"loss": "mse", "epochs": 1, "batch_size": None},
+        "grid": {
+            "arch": [[{"units": 2, "act": "tanh", "init": "glorot"},
+                      {"units": 1, "act": "sigmoid", "init": "glorot"}]],
+            "optim": [{"type": "sgd", "lr": {
+                "space": "log", "start": 0.1, "stop": 0.01, "num": 2,
+            }}],
+        },
+    }
+    for expected in [12345, 67890]:
+        run_dir = run_experiment("monk1", "select", payload,
+                                 tag="pytest-auto", results_root=tmp_path)
+        saved = json.loads((run_dir / "config.json").read_text())
+        summary = json.loads((run_dir / "summary.json").read_text())
+        report = (run_dir / "selection_report.txt").read_text()
+        assert saved["config"]["seed"] == summary["seed"] == expected
+        assert saved["config"]["split_seed"] == summary["split_seed"] == 42
+        assert saved["config"]["stratify"] is summary["stratify"] is True
+        assert f"_s{expected}" in run_dir.name
+        assert f"Seed: {expected}" in report
+        assert "Split seed: 42" in report
+        assert "Stratified split: yes" in report
+        assert summary["n_configs"] == 2
+    assert payload["seed"] == "auto"
+    assert len(splits) == 4
+    assert all(seed == 42 for seed, _ in splits)
+    assert all(np.array_equal(indices, splits[0][1]) for _, indices in splits)
 
 
 # --- engine: the index stays a flat comparison table --------------------------
@@ -148,9 +228,8 @@ def test_run_experiment_select_does_not_pollute_the_index_with_nested_fields(tmp
 
 
 # --- cup: registered with a restricted mode set (no plain `train`) -----------
-# _load_cup's "test" slot is the internal test set: `train` would feed it to
-# fit() as validation_data every epoch of every trial, which is exactly the
-# internal-test peeking select/assess exist to prevent (see registry.py).
+# CUP exposes only the explicit select -> assess workflow so the internal test
+# remains isolated from model selection and is evaluated only after fitting.
 
 def test_cup_profile_uses_mee_and_forbids_plain_train():
     profile = TASKS["cup"]
@@ -174,6 +253,19 @@ def test_cup_internal_test_split_is_deterministic_across_loads():
     _, _, X_test_2, Y_test_2 = TASKS["cup"].load(ROOT)
     assert np.array_equal(X_test_1, X_test_2)
     assert np.array_equal(Y_test_1, Y_test_2)
+
+
+def test_cup_runner_uses_the_canonical_design_test_split():
+    """Every entry point must reserve the same rows as the internal test set."""
+    _ids, X, Y = load_cup_train(str(ROOT / "data" / "cup" / "ML-CUP25-TR.csv"))
+    expected = cup_design_test_split(X, Y)
+    actual = TASKS["cup"].load(ROOT)
+
+    assert CUP_INTERNAL_TEST_FRAC == 0.2
+    assert CUP_INTERNAL_TEST_SEED == 0
+    assert expected[0].shape[0] == 400
+    assert expected[2].shape[0] == 100
+    assert all(np.array_equal(got, want) for got, want in zip(actual, expected))
 
 
 def _tiny_cup_select_payload(**overrides):

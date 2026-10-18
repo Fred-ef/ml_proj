@@ -102,6 +102,18 @@ def test_fit_accepts_and_honors_early_stopping():
     assert len(hist["loss"]) < 5000     # it stopped before the end
 
 
+def test_early_stopping_restores_the_best_validation_parameters():
+    X, Y = small_data(n=12)
+    Xv, Yv = small_data(seed=99, n=12)
+    net = overfit_net()
+    hist = net.fit(
+        X, Y, epochs=5000, validation_data=(Xv, Yv),
+        early_stopping=EarlyStopping(patience=5),
+    )
+    restored_loss = MSE().value(net.predict(Xv), Yv)
+    assert restored_loss == pytest.approx(min(hist["val_loss"]))
+
+
 # --- batching: full-batch / mini-batch / online -----------------------------
 # One parameter (batch_size) drives all three modes: None -> full-batch,
 # m -> mini-batch, 1 -> online. These guard the two bugs we hit during F2:

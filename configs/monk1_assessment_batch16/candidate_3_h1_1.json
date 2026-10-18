@@ -1,0 +1,36 @@
+{
+  "task": "monk1",
+  "mode": "assess",
+  "tag": "assessment-minibatch16-h1-1-41ep",
+  "config": {
+    "loss": "mse",
+    "epochs": 41,
+    "batch_size": 16,
+    "arch": [
+      {
+        "units": 1,
+        "act": "tanh",
+        "init": "glorot"
+      },
+      {
+        "units": 1,
+        "act": "tanh",
+        "init": "glorot"
+      },
+      {
+        "units": 1,
+        "act": "sigmoid",
+        "init": "glorot"
+      }
+    ],
+    "optim": {
+      "type": "sgd",
+      "lr": 0.1
+    },
+    "reg": null,
+    "seed": 7777777,
+    "n_trials": 5,
+    "val_mean": 0.88,
+    "val_std": null
+  }
+}

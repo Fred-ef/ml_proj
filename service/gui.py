@@ -206,12 +206,9 @@ class TrainForm:
                 self.epochs = ui.number("epochs", value=200, min=1, precision=0).classes("w-28")
                 self.batch_size = ui.number("batch_size (vuoto = full batch)", value=None,
                                             min=1, precision=0).classes("w-56")
+                self.scale = ui.checkbox("standardizza X e Y")
                 self.seed = ui.number("seed", value=0, precision=0).classes("w-24")
                 self.n_trials = ui.number("n_trials", value=5, min=1, precision=0).classes("w-24")
-            with ui.row().classes("gap-4"):
-                self.patience = ui.number("patience (vuoto = disattivo)", value=None,
-                                          min=1, precision=0).classes("w-56")
-                self.min_delta = ui.number("min_delta", value=0.0, min=0.0, step=0.0001).classes("w-32")
             with ui.row().classes("gap-4 items-end") as self.assess_box:
                 ui.label("Solo assess — dal summary di un run select:").classes("text-caption")
                 self.val_mean = ui.number("val_mean", value=None).classes("w-32")
@@ -222,17 +219,15 @@ class TrainForm:
             "arch": self.arch.to_list(),
             "optim": self.optim.to_dict(),
             "epochs": int(self.epochs.value or 1),
+            "scale": bool(self.scale.value),
             "seed": int(self.seed.value or 0),
             "n_trials": int(self.n_trials.value or 5),
-            "min_delta": float(self.min_delta.value or 0.0),
         }
         reg = self.reg.to_dict()
         if reg is not None:
             cfg["reg"] = reg
         if self.batch_size.value not in (None, ""):
             cfg["batch_size"] = int(self.batch_size.value)
-        if self.patience.value not in (None, ""):
-            cfg["patience"] = int(self.patience.value)
         if assess:
             if self.val_mean.value not in (None, ""):
                 cfg["val_mean"] = float(self.val_mean.value)
@@ -246,10 +241,9 @@ class TrainForm:
         self.reg.load(cfg.get("reg"))
         self.epochs.value = cfg.get("epochs", 200)
         self.batch_size.value = cfg.get("batch_size")
+        self.scale.value = cfg.get("scale", False)
         self.seed.value = cfg.get("seed", 0)
         self.n_trials.value = cfg.get("n_trials", 5)
-        self.patience.value = cfg.get("patience")
-        self.min_delta.value = cfg.get("min_delta", 0.0)
         self.val_mean.value = cfg.get("val_mean")
         self.val_std.value = cfg.get("val_std")
 
@@ -372,6 +366,21 @@ class ScalarCandidate:
         self.row.delete()
 
 
+class BoolCandidate:
+    """One boolean grid candidate."""
+
+    def __init__(self, container: ui.column, on_remove, *, value: bool = False) -> None:
+        with container, ui.row().classes("items-center gap-2") as self.row:
+            self.field = ui.checkbox("attiva", value=bool(value))
+            ui.button(icon="delete", on_click=lambda: on_remove(self)).props("flat dense round")
+
+    def value(self) -> bool:
+        return bool(self.field.value)
+
+    def delete(self) -> None:
+        self.row.delete()
+
+
 class SelectForm:
     """Backs mode=select (SelectConfig, schemas.py). Reuses TrainForm's own
     building blocks (ArchSection/OptimSection/RegSection) so arch/optim/reg
@@ -414,6 +423,9 @@ class SelectForm:
                     ui.label("min_delta").classes("text-caption")
                     self.min_delta = AxisList(partial(ScalarCandidate, min=0.0, step=0.0001),
                                               add_label="+ min_delta", default=0.0)
+            with ui.column().classes("gap-1"):
+                ui.label("standardizzazione X/Y").classes("text-caption")
+                self.scale = AxisList(BoolCandidate, add_label="+ scale", default=False)
 
     def build(self) -> dict:
         fixed: dict = {}
@@ -436,6 +448,7 @@ class SelectForm:
         put("patience", [int(v) if v is not None else None for v in self.patience.values()],
             omit_none_singleton=True)
         put("min_delta", [float(v) if v is not None else 0.0 for v in self.min_delta.values()])
+        put("scale", self.scale.values())
 
         cfg: dict = {"k": int(self.k.value or 5), "n_core": int(self.n_core.value or -1),
                     "fixed": fixed, "grid": grid}
@@ -463,6 +476,7 @@ class SelectForm:
         self.batch_size.load_values(axis_values("batch_size", None))
         self.patience.load_values(axis_values("patience", None))
         self.min_delta.load_values(axis_values("min_delta", 0.0))
+        self.scale.load_values(axis_values("scale", False))
 
 
 # --------------------------------------------------------------- results view
@@ -556,7 +570,8 @@ def build_submit(on_submitted) -> None:
     assess_prefill_box.bind_visibility_from(mode_sel, "value", backward=lambda v: v == "assess")
 
     def _sync_templates() -> None:
-        matches = [t for t in _TEMPLATES if t.get("mode") == mode_sel.value]
+        matches = [t for t in _TEMPLATES
+                   if t.get("task") == task_sel.value and t.get("mode") == mode_sel.value]
         options = {t["_path"]: f"{t['task']} / {t['tag']} ({t['mode']})" for t in matches}
         template_sel.set_options(options, value=None)
 
@@ -591,6 +606,8 @@ def build_submit(on_submitted) -> None:
             ui.notify("Questo run non ha un best_config (non è un run select)", type="warning")
             return
         cfg = dict(summary["best_config"])
+        for key in ("patience", "min_delta", "monitor"):
+            cfg.pop(key, None)
         cfg["epochs"] = summary["best_epoch_median"]
         cfg["val_mean"] = summary["val_mean"]
         cfg["val_std"] = summary["val_std"]

@@ -5,6 +5,11 @@ Plots train/val curves with line styles/markers, one point per epoch.
 
 from __future__ import annotations
 
+import matplotlib
+
+# Plot generation runs in CLI jobs and worker processes where no display is
+# available. Select the non-interactive backend before importing pyplot.
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 

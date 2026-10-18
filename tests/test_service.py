@@ -71,6 +71,39 @@ def test_sgd_and_quickprop_payloads_only_carry_their_own_fields():
     assert set(qp["optim"]) == {"type", "lr", "mu"}
 
 
+def test_select_holdout_payload_omits_the_default_fold_count():
+    payload = JobRequest(task="monk1", mode="select", select={
+        "validation_fraction": 0.2,
+        "fixed": {"epochs": 3},
+        "grid": {
+            "arch": [[{"units": 2, "act": "tanh"}, {"units": 1, "act": "sigmoid"}]],
+            "optim": [{"type": "sgd", "lr": 0.1}],
+        },
+    }).payload()
+    assert payload["validation_fraction"] == 0.2
+    assert "k" not in payload
+
+
+def test_select_payload_accepts_auto_seed_and_log_learning_rate_range():
+    payload = JobRequest(task="monk1", mode="select", select={
+        "seed": "auto",
+        "split_seed": 42,
+        "stratify": True,
+        "fixed": {"epochs": 3},
+        "grid": {
+            "arch": [[{"units": 2, "act": "tanh"},
+                      {"units": 1, "act": "sigmoid"}]],
+            "optim": [{"type": "sgd", "lr": {
+                "space": "log", "start": 0.1, "stop": 1e-5, "num": 5,
+            }}],
+        },
+    }).payload()
+    assert payload["seed"] == "auto"
+    assert payload["split_seed"] == 42
+    assert payload["stratify"] is True
+    assert payload["grid"]["optim"][0]["lr"]["num"] == 5
+
+
 def test_unknown_optimizer_type_is_rejected():
     with pytest.raises(Exception, match="sgd.*quickprop|quickprop.*sgd"):
         JobRequest(task="monk1", mode="train", config={
@@ -104,10 +137,19 @@ def test_sgd_and_adagrad_accept_a_linear_decay_lr_schedule_but_quickprop_does_no
 
 
 def test_select_payload_defaults_n_core_to_all_cores_and_accepts_an_override():
-    default = JobRequest(task="monk1", mode="select", select={}).payload()
+    search = {
+        "fixed": {
+            "arch": [{"units": 1, "act": "sigmoid"}],
+            "optim": {"type": "sgd", "lr": 0.1},
+            "epochs": 10,
+        }
+    }
+    default = JobRequest(task="monk1", mode="select", select=search).payload()
     assert default["n_core"] == -1
 
-    overridden = JobRequest(task="monk1", mode="select", select={"n_core": 2}).payload()
+    overridden = JobRequest(
+        task="monk1", mode="select", select={**search, "n_core": 2}
+    ).payload()
     assert overridden["n_core"] == 2
 
 

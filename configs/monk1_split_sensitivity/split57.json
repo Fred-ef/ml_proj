@@ -1,0 +1,59 @@
+{
+  "task": "monk1",
+  "mode": "select",
+  "tag": "split-sensitivity-fullbatch-model20261018-split57",
+  "config": {
+    "validation_fraction": 0.2,
+    "seed": 20261018,
+    "split_seed": 57,
+    "stratify": true,
+    "n_core": 1,
+    "fixed": {
+      "loss": "mse",
+      "epochs": 50,
+      "batch_size": null,
+      "patience": 5,
+      "monitor": "val_loss"
+    },
+    "grid": {
+      "arch": {
+        "hidden_layers": [
+          1,
+          2
+        ],
+        "units_1": [
+          1,
+          4,
+          8
+        ],
+        "units_2": [
+          1,
+          4
+        ],
+        "hidden": {
+          "act": "tanh",
+          "init": "glorot"
+        },
+        "output": {
+          "units": 1,
+          "act": "sigmoid",
+          "init": "glorot"
+        }
+      },
+      "optim": [
+        {
+          "type": "sgd",
+          "lr": {
+            "space": "log",
+            "start": 0.00001,
+            "stop": 0.1,
+            "num": 3
+          }
+        }
+      ],
+      "reg": [
+        null
+      ]
+    }
+  }
+}

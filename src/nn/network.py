@@ -59,15 +59,56 @@ class Network:
         metrics: dict[str, Callable] | None = None,
     ) -> dict[str, list[float]]:
         """Train the network, populating and returning ``self.history``."""
+        if x_train.ndim != 2 or y_train.ndim != 2:
+            raise ValueError("x_train and y_train must both be 2D arrays")
+        if len(x_train) == 0 or len(x_train) != len(y_train):
+            raise ValueError("x_train and y_train must contain the same non-zero number of rows")
+        if not np.all(np.isfinite(x_train)) or not np.all(np.isfinite(y_train)):
+            raise ValueError("training data contains non-finite values")
+        if not self.layers:
+            raise ValueError("the network must contain at least one layer")
+        if x_train.shape[1] != self.layers[0].n_in:
+            raise ValueError(
+                f"input width {x_train.shape[1]} does not match network input width "
+                f"{self.layers[0].n_in}"
+            )
+        if y_train.shape[1] != self.layers[-1].n_out:
+            raise ValueError(
+                f"target width {y_train.shape[1]} does not match network output width "
+                f"{self.layers[-1].n_out}"
+            )
+        if epochs <= 0:
+            raise ValueError("epochs must be greater than zero")
+        if batch_size is not None and batch_size <= 0:
+            raise ValueError("batch_size must be greater than zero")
+        if validation_data is not None:
+            x_val, y_val = validation_data
+            if x_val.ndim != 2 or y_val.ndim != 2 or len(x_val) != len(y_val):
+                raise ValueError("validation inputs and targets must be aligned 2D arrays")
+            if len(x_val) == 0 or not np.all(np.isfinite(x_val)) or not np.all(np.isfinite(y_val)):
+                raise ValueError("validation data must be non-empty and finite")
+            if x_val.shape[1] != self.layers[0].n_in or y_val.shape[1] != self.layers[-1].n_out:
+                raise ValueError("validation data dimensions do not match the network")
+        elif early_stopping is not None:
+            raise ValueError("early_stopping requires validation_data")
+
         self.history = {"loss": [], "val_loss": []}
         for _name in (metrics or {}):
             self.history[_name] = []
             self.history["val_" + _name] = []
         self.optimizer.reset()
+        if early_stopping is not None:
+            early_stopping.reset()
 
         N = x_train.shape[0]
         m = batch_size if batch_size is not None else N
+        if self.optimizer.requires_full_batch and m < N:
+            raise ValueError(
+                f"{type(self.optimizer).__name__} requires full-batch training; "
+                f"got batch_size={m} for {N} samples"
+            )
         steps_per_epoch = int(np.ceil(N / m))
+        best_params: list[tuple[np.ndarray, np.ndarray]] | None = None
 
         if hasattr(self.optimizer, 'lr') and hasattr(self.optimizer.lr, 'steps_per_epoch'):
             self.optimizer.lr.steps_per_epoch = steps_per_epoch
@@ -91,17 +132,34 @@ class Network:
             self.history["loss"].append(self.loss.value(y_tr, y_train))
             for _name, _fn in (metrics or {}).items():
                 self.history[_name].append(_fn(y_tr, y_train))
-            if validation_data:
+            if validation_data is not None:
                 x_val, y_val = validation_data
                 y_val_pred = self.forward(x_val)
                 self.history["val_loss"].append(self.loss.value(y_val_pred, y_val))
                 for _name, _fn in (metrics or {}).items():
                     self.history["val_" + _name].append(_fn(y_val_pred, y_val))
-            if early_stopping and early_stopping.should_stop(self.history["val_loss"]):
-                break
+            if early_stopping:
+                monitor_key = getattr(early_stopping, 'monitor', 'val_loss')
+                if monitor_key not in self.history or not self.history[monitor_key]:
+                    raise ValueError(f"early-stopping monitor {monitor_key!r} is not available")
+                if early_stopping.should_stop(self.history[monitor_key]):
+                    break
+                if early_stopping.improved:
+                    best_params = [(layer.W.copy(), layer.b.copy()) for layer in self.layers]
+
+        # Early stopping is a model-selection aid: expose the parameters from
+        # the best monitored epoch, not those after the patience tail.
+        if early_stopping is not None and best_params is not None:
+            for layer, (weights, biases) in zip(self.layers, best_params):
+                layer.W[...] = weights
+                layer.b[...] = biases
         return self.history
 
     def predict(self, x: np.ndarray) -> np.ndarray:
+        if x.ndim != 2 or not self.layers or x.shape[1] != self.layers[0].n_in:
+            raise ValueError("prediction input dimensions do not match the network")
+        if not np.all(np.isfinite(x)):
+            raise ValueError("prediction inputs contain non-finite values")
         return self.forward(x)
 
     # --- correctness -----------------------------------------------------

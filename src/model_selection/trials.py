@@ -1,9 +1,13 @@
-"""Multi-seed training + assessment.
+"""Fixed-epoch multi-seed training + assessment.
 
 Trains one configuration on ``n_trials`` different seeds and aggregates the
 scores (mean/std) so results are reported over trials rather than from a single
 lucky/unlucky run. Used by both the CLI/API runner (train and assess modes) and
 kept independent of any single experiment.
+
+The number of epochs must already have been chosen during model selection.
+The held-out test set is used only after fitting, to keep the assessment
+independent from every training decision.
 
 The score to aggregate is injected as ``score_fn``/``score_name`` (accuracy for
 MONK, MEE for CUP), so this module never hardcodes a task-specific metric.
@@ -14,15 +18,30 @@ from __future__ import annotations
 import numpy as np
 
 from .build import build_model
-from .early_stopping import EarlyStopping
 from ..data.preprocessing import StandardScaler
 
 
 def run_trials(config: dict, X_tr, y_tr, X_te, y_te, metrics: dict,
                score_fn, score_name: str) -> tuple[dict, list[dict]]:
-    """Runs config on n_trials different seeds; returns (summary, histories)."""
+    """Run fixed-epoch trials and evaluate each once on the held-out test set.
+
+    Early-stopping settings are rejected here. Early stopping belongs in
+    cross-validation, where it can monitor a validation fold without leaking
+    test information.
+    """
+    early_keys = [key for key in ("patience", "min_delta", "monitor") if key in config]
+    if early_keys:
+        raise ValueError(
+            "early stopping is not allowed during train/assessment; "
+            f"remove {early_keys} and use the fixed epoch count selected by cross-validation"
+        )
+
     n_trials  = config.get("n_trials", 5)
     base_seed = config.get("seed", 0)
+    if n_trials <= 0:
+        raise ValueError("n_trials must be greater than zero")
+    if len(X_tr) != len(y_tr) or len(X_te) != len(y_te):
+        raise ValueError("input and target row counts must match")
 
     test_score, train_score, histories = [], [], []
     for i in range(n_trials):
@@ -42,18 +61,21 @@ def run_trials(config: dict, X_tr, y_tr, X_te, y_te, metrics: dict,
             y_tr_i = scaler_Y.fit_transform(y_tr_i)
             y_te_i = scaler_Y.transform(y_te_i)
 
-        model = build_model(cfg_i)
+            def unscaled_metric(y_pred, y_true, base_fn, sy=scaler_Y):
+                return base_fn(sy.inverse_transform(y_pred), sy.inverse_transform(y_true))
 
-        # Opt-in, like cross_validate: no "patience" in config => no early
-        # stopping (train for the full epoch count requested).
-        patience = cfg_i.get("patience", None)
-        es = (EarlyStopping(patience=patience, min_delta=cfg_i.get("min_delta", 0.0))
-              if patience is not None else None)
+            fit_metrics = {
+                name: (lambda yp, yt, fn=fn: unscaled_metric(yp, yt, fn))
+                for name, fn in metrics.items()
+            }
+        else:
+            fit_metrics = metrics
+
+        model = build_model(cfg_i)
 
         history = model.fit(X_tr_i, y_tr_i, epochs=cfg_i["epochs"],
                             batch_size=cfg_i.get("batch_size"),
-                            validation_data=(X_te_i, y_te_i), metrics=metrics,
-                            early_stopping=es)
+                            metrics=fit_metrics)
 
         pred_tr, pred_te = model.predict(X_tr_i), model.predict(X_te_i)
         
@@ -71,7 +93,9 @@ def run_trials(config: dict, X_tr, y_tr, X_te, y_te, metrics: dict,
         train_score.append(s_tr); test_score.append(s_te); histories.append(history)
 
     test_score, train_score = np.array(test_score), np.array(train_score)
-    rep = int(np.argsort(test_score)[len(test_score) // 2])
+    # Pick a representative learning curve without consulting the test set.
+    # The median is independent of whether a metric is minimized or maximized.
+    rep = int(np.argsort(train_score)[len(train_score) // 2])
 
     summary = {
         f"test_{score_name}_mean":  float(np.mean(test_score)),

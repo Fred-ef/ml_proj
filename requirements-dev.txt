@@ -2,6 +2,7 @@
 # Tooling (test runner + API's HTTP layer)
 #
 #   pip install -r requirements-dev.txt
+-r requirements.txt
 pytest>=8.0
 fastapi>=0.115
 uvicorn[standard]>=0.32

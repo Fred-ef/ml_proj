@@ -20,7 +20,13 @@ def load_monk(path: str) -> tuple[np.ndarray, np.ndarray]:
     """Load a MONK file and return (X_onehot[N,17], y[N,1])."""
     # Read the file with NumPy, keeping only the first 7 columns (0 to 6).
     # The 8th column (index 7) is a textual id and is dropped.
-    data = np.loadtxt(path, usecols=tuple(range(7)))
+    data = np.atleast_2d(np.loadtxt(path, usecols=tuple(range(7))))
+    if not np.all(np.isfinite(data)):
+        raise ValueError("MONK data contains non-finite values")
+    if not np.all(np.isin(data[:, 0], (0.0, 1.0))):
+        raise ValueError("MONK targets must be binary")
+    if not np.all(data[:, 1:] == np.floor(data[:, 1:])):
+        raise ValueError("MONK categorical attributes must be integers")
 
     # First column (index 0) is the binary target; keep the 2D shape (N, 1).
     y = data[:, 0:1]
@@ -37,6 +43,15 @@ def load_monk(path: str) -> tuple[np.ndarray, np.ndarray]:
 
 def one_hot(values: np.ndarray, cardinalities=ATTR_CARDINALITIES) -> np.ndarray:
     """1-of-k encode integer-coded categorical attributes."""
+    if values.ndim != 2 or values.shape[1] != len(cardinalities):
+        raise ValueError(
+            f"values must have shape (N, {len(cardinalities)}), got {values.shape}"
+        )
+    if not np.issubdtype(values.dtype, np.integer):
+        raise ValueError("categorical values must be integers")
+    for i, card in enumerate(cardinalities):
+        if np.any((values[:, i] < 1) | (values[:, i] > card)):
+            raise ValueError(f"attribute {i + 1} must contain values in [1, {card}]")
     # Number of rows N (the number of examples).
     N = values.shape[0]
 

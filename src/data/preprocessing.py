@@ -17,6 +17,10 @@ class StandardScaler:
 
     def fit(self, X: np.ndarray) -> None:
         """Compute the mean and std to be used for later scaling."""
+        if X.ndim != 2 or len(X) == 0:
+            raise ValueError("X must be a non-empty 2D array")
+        if not np.all(np.isfinite(X)):
+            raise ValueError("X contains non-finite values")
         self.mean = np.mean(X, axis=0)
         self.scale = np.std(X, axis=0)
         # Handle zero variance to avoid division by zero
@@ -26,6 +30,8 @@ class StandardScaler:
         """Perform standardization by centering and scaling."""
         if self.mean is None or self.scale is None:
             raise ValueError("This StandardScaler instance is not fitted yet. Call 'fit' first.")
+        if X.ndim != 2 or X.shape[1] != self.mean.shape[0]:
+            raise ValueError("X has a different feature width from the fitted data")
         return (X - self.mean) / self.scale
 
     def fit_transform(self, X: np.ndarray) -> np.ndarray:
@@ -37,4 +43,6 @@ class StandardScaler:
         """Scale back the data to the original representation."""
         if self.mean is None or self.scale is None:
             raise ValueError("This StandardScaler instance is not fitted yet. Call 'fit' first.")
+        if X.ndim != 2 or X.shape[1] != self.mean.shape[0]:
+            raise ValueError("X has a different feature width from the fitted data")
         return X * self.scale + self.mean

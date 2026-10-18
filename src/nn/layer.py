@@ -25,6 +25,10 @@ class Dense:
         activation: Activation,
         initializer: Initializer,
     ) -> None:
+        if isinstance(n_in, bool) or not isinstance(n_in, int) or n_in <= 0:
+            raise ValueError("n_in must be a positive integer")
+        if isinstance(n_out, bool) or not isinstance(n_out, int) or n_out <= 0:
+            raise ValueError("n_out must be a positive integer")
         self.n_in = n_in
         self.n_out = n_out
         self.activation = activation

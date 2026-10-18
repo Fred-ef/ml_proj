@@ -1,8 +1,19 @@
 {
   "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
-  "python.analysis.extraPaths": ["${workspaceFolder}"],
+  "python.analysis.extraPaths": [
+    "${workspaceFolder}"
+  ],
   "python.analysis.typeCheckingMode": "basic",
   "python.testing.pytestEnabled": true,
   "python.testing.unittestEnabled": false,
-  "python.testing.pytestArgs": ["tests"]
+  "python.testing.pytestArgs": [
+    "tests"
+  ],
+  "python-envs.pythonProjects": [
+    {
+      "path": "results/cup/2026-07-03_020918_624_assess_fine_top2_40_mom098_lam0012_s42",
+      "envManager": "ms-python.python:venv",
+      "packageManager": "ms-python.python:pip"
+    }
+  ]
 }

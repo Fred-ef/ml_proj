@@ -21,6 +21,8 @@ import numpy as np
 class Optimizer:
     """Base class."""
 
+    requires_full_batch = False
+
     def step(self, params, grads) -> None:
         raise NotImplementedError
 
@@ -39,6 +41,10 @@ class SGD(Optimizer):
     """
 
     def __init__(self, lr: float | Callable = 0.01, momentum: float = 0.0, nesterov: bool = False) -> None:
+        if not callable(lr) and (isinstance(lr, bool) or lr <= 0):
+            raise ValueError("lr must be positive")
+        if not 0 <= momentum <= 1:
+            raise ValueError("momentum must be between 0 and 1")
         self.lr = lr
         self.momentum = momentum
         self.nesterov = nesterov
@@ -78,10 +84,6 @@ class SGD(Optimizer):
                 p += v_new
 
 
-class RProp(Optimizer):
-    """Resilient backpropagation (optional / extra)."""
-
-
 class QuickProp(Optimizer):
     """QuickProp: per-weight update (using Newton's approximation)
 
@@ -102,7 +104,13 @@ class QuickProp(Optimizer):
     mu : float   maximum growth factor: a step may not exceed mu times the last one
     """
 
+    requires_full_batch = True
+
     def __init__(self, lr: float = 0.1, mu: float = 1.75) -> None:
+        if isinstance(lr, bool) or lr <= 0:
+            raise ValueError("lr must be positive")
+        if isinstance(mu, bool) or mu <= 0:
+            raise ValueError("mu must be positive")
         self.lr = lr          # ε: step of the gradient term / bootstrap
         self.mu = mu          # maximum growth factor of the step
         # Per-parameter state, allocated lazily at the first step

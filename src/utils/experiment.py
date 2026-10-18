@@ -14,6 +14,7 @@ from __future__ import annotations
 import csv
 import json
 import platform
+import re
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -56,19 +57,28 @@ def capture_env() -> dict:
 def make_run_id(tag: str, seed: int | None = None) -> str:
     """e.g. '2026-06-30_143012_483_baseline'.
 
-    Chronologically sortable, human-readable, millisecond-resolution so two
-    rapid successive calls don't collide.
+    Chronologically sortable, human-readable and safe as a directory name.
     """
+    safe_tag = re.sub(r"[^A-Za-z0-9_.-]+", "-", str(tag)).strip(".-") or "run"
     now = datetime.now()
-    rid = f"{now:%Y-%m-%d_%H%M%S}_{now.microsecond // 1000:03d}_{tag}"
+    rid = f"{now:%Y-%m-%d_%H%M%S}_{now.microsecond:06d}_{safe_tag}"
     return rid if seed is None else f"{rid}_s{seed}"
 
 
 def new_run_dir(results_root: str | Path, task: str, tag: str, seed: int | None = None) -> Path:
     """Create and return ``<results_root>/<task>/<run_id>/`` (parents included)."""
-    run_dir = Path(results_root) / task / make_run_id(tag, seed)
-    run_dir.mkdir(parents=True, exist_ok=True)
-    return run_dir
+    parent = Path(results_root) / task
+    parent.mkdir(parents=True, exist_ok=True)
+    base = make_run_id(tag, seed)
+    for suffix in range(1000):
+        name = base if suffix == 0 else f"{base}_{suffix}"
+        run_dir = parent / name
+        try:
+            run_dir.mkdir(exist_ok=False)
+            return run_dir
+        except FileExistsError:
+            continue
+    raise RuntimeError("could not allocate a unique run directory")
 
 
 # ------------------------------------------------------------------- writing a run
