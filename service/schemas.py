@@ -84,15 +84,20 @@ class AssessConfig(TrainConfig):
 
 
 class SelectConfig(BaseModel):
-    """Payload for mode=select
+    """Payload for mode=select: k-fold if k is set, holdout otherwise."""
 
-    """
-
-    k: int = Field(5, gt=0)
+    k: Optional[int] = Field(default=None, ge=2)
+    val_fraction: Optional[float] = Field(default=None, gt=0, lt=1)
     seed: Optional[int] = None
     n_core: Optional[int] = -1
     fixed: dict[str, Any] = Field(default_factory=dict)
     grid: dict[str, list[Any]] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def _one_validation_strategy(self) -> "SelectConfig":
+        if self.k is not None and self.val_fraction is not None:
+            raise ValueError("val_fraction applies only to holdout validation")
+        return self
 
 
 class JobRequest(BaseModel):

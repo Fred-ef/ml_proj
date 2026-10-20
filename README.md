@@ -53,6 +53,37 @@ python -m experiments.cup_screening   # CUP: grid search / model selection
 python -m experiments.cup_final       # CUP: retrain + blind-test CSV + abstract
 ```
 
+## Grid search results
+
+The `select` mode saves aggregate training/validation errors and the full ranked
+configuration list in `summary.json`, then prints a readable report automatically:
+
+```bash
+python -m runner --config configs/samples/monk_mod_selection.json
+```
+
+To reopen a saved report without running training again:
+
+```bash
+python -m runner.show_grid_search results/monk1/RUN_ID
+```
+
+The reader shows the first 20 ranked configurations by default. To show every
+configuration saved in `summary.json`, add `--all`. It also accepts the path to
+`summary.json` directly.
+
+For an executable example with all optional settings visible and `null` values
+for disabled features, see `configs/samples/monk_mod_selection.json` and
+`configs/samples/README.md`.
+
+In its `search` section, `scale: "int"` visits every integer from `start` to
+`stop`, including both endpoints. `scale: "log"` starts at `start` and multiplies
+or divides by `factor` (10 by default) until the next value would pass `stop`.
+For `hidden_layers` and `hidden_units`, a logarithmic sequence must contain only
+integers: for example, `start: 1`, `stop: 8`, `factor: 2` gives `1, 2, 4, 8`.
+Use either `search` or the older explicit `grid` section. The runner reads one
+input file and records each evaluated configuration in the saved summary.
+
 ## Experiment service + web console
 
 Besides the CLI entry points above, `service/` exposes the same runner through

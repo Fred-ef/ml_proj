@@ -92,7 +92,8 @@ def test_run_experiment_select_then_assess_chain(tmp_path):
         "grid": {
             "arch": [[{"units": 2, "act": "tanh", "init": "uniform", "init_kwargs": {"scale": 0.3}},
                      {"units": 1, "act": "sigmoid", "init": "uniform", "init_kwargs": {"scale": 0.3}}]],
-            "optim": [{"type": "sgd", "lr": 0.1, "momentum": 0.9}],
+            "optim": [{"type": "sgd", "lr": 0.1, "momentum": 0.9},
+                      {"type": "sgd", "lr": 0.05, "momentum": 0.9}],
             "reg": [None],
         },
     }
@@ -101,23 +102,58 @@ def test_run_experiment_select_then_assess_chain(tmp_path):
     select_summary = json.loads((select_dir / "summary.json").read_text())
 
     assert select_summary["metric"] == "acc"
-    assert {"val_mean", "val_std", "best_epoch_median", "best_config", "ranking"} <= set(select_summary)
-    assert len(select_summary["ranking"]) == select_summary["n_configs"] == 1
+    assert {"aggregate", "ranking"} <= set(select_summary)
+    assert {"best_config", "best_epoch_median", "val_mean", "val_std"}.isdisjoint(select_summary)
+    assert len(select_summary["ranking"]) == select_summary["n_configs"] == 2
 
-    # exactly the handoff documented in F4-EXTRA: copy val_mean/val_std and
-    # best_epoch_median straight from the select summary into the assess payload
-    assess_payload = dict(select_summary["best_config"])
-    assess_payload["epochs"] = select_summary["best_epoch_median"]
+    # Assess uses the explicitly selected row, even when it is not the first.
+    chosen = select_summary["ranking"][1]
+    assess_payload = dict(chosen["config"])
+    assess_payload["epochs"] = chosen["best_epoch_median"]
     assess_payload["n_trials"] = 2
-    assess_payload["val_mean"] = select_summary["val_mean"]
-    assess_payload["val_std"] = select_summary["val_std"]
+    assess_payload["val_mean"] = chosen["val_mean"]
+    assess_payload["val_std"] = chosen["val_std"]
 
     assess_dir = run_experiment("monk1", "assess", assess_payload,
                                 tag="pytest-assess", results_root=tmp_path)
     assess_summary = json.loads((assess_dir / "summary.json").read_text())
 
     assert {"acc_tr_mean", "acc_ts_mean", "acc_vl_mean"} <= set(assess_summary)
-    assert assess_summary["acc_vl_mean"] == select_summary["val_mean"]
+    assert assess_summary["acc_vl_mean"] == chosen["val_mean"]
+
+
+def test_run_experiment_select_with_holdout_reports_grid_error_stats(tmp_path):
+    select_payload = {
+        "val_fraction": 0.25, "seed": 0, "n_core": 1,
+        "fixed": {"loss": "mse", "epochs": 5, "batch_size": None},
+        "grid": {
+            "arch": [[{"units": 2, "act": "tanh", "init": "uniform", "init_kwargs": {"scale": 0.3}},
+                      {"units": 1, "act": "sigmoid", "init": "uniform", "init_kwargs": {"scale": 0.3}}]],
+            "optim": [{"type": "sgd", "lr": 0.1, "momentum": 0.9},
+                      {"type": "sgd", "lr": 0.01, "momentum": 0.9}],
+            "reg": [None],
+        },
+    }
+    run_dir = run_experiment("monk1", "select", select_payload,
+                             tag="pytest-holdout", results_root=tmp_path)
+    summary = json.loads((run_dir / "summary.json").read_text())
+
+    assert summary["validation_mode"] == "holdout"
+    assert summary["n_configs"] == len(summary["ranking"]) == 2
+    assert {"best_config", "best_epoch_median", "val_mean", "val_std"}.isdisjoint(summary)
+    ranking = summary["ranking"]
+    assert [row["val_mean"] for row in ranking] == sorted(
+        (row["val_mean"] for row in ranking), reverse=True)
+    assert all(row["val_std"] is None for row in ranking)
+    assert all(row["epochs_run"] == [5] and row["best_epoch_median"] == 5
+               for row in ranking)
+    assert all(row["train_error"] == pytest.approx(1 - row["train_mean"])
+               and row["val_error"] == pytest.approx(1 - row["val_mean"])
+               for row in ranking)
+    for name in ("train_error", "val_error"):
+        values = [row[name] for row in ranking]
+        assert summary["aggregate"][name]["mean"] == pytest.approx(np.mean(values))
+        assert summary["aggregate"][name]["variance"] == pytest.approx(np.var(values))
 
 
 # --- engine: the index stays a flat comparison table --------------------------
@@ -144,7 +180,8 @@ def test_run_experiment_select_does_not_pollute_the_index_with_nested_fields(tmp
     }
     run_experiment("monk1", "select", select_payload, tag="pytest-select", results_root=tmp_path)
     row = json.loads((tmp_path / "monk1" / "index.jsonl").read_text().splitlines()[0])
-    assert "ranking" not in row and "best_config" not in row
+    assert "ranking" not in row and "aggregate" not in row
+    assert "best_config" not in row
 
 
 # --- cup: registered with a restricted mode set (no plain `train`) -----------
@@ -197,18 +234,19 @@ def test_run_experiment_select_then_assess_chain_on_real_cup_data(tmp_path):
     select_summary = json.loads((select_dir / "summary.json").read_text())
 
     assert select_summary["metric"] == "mee"
-    assert select_summary["val_mean"] >= 0.0   # MEE is a distance, never negative
+    chosen = select_summary["ranking"][0]
+    assert chosen["val_mean"] >= 0.0   # MEE is a distance, never negative
 
-    assess_payload = dict(select_summary["best_config"])
-    assess_payload["epochs"] = select_summary["best_epoch_median"]
+    assess_payload = dict(chosen["config"])
+    assess_payload["epochs"] = chosen["best_epoch_median"]
     assess_payload["n_trials"] = 2
-    assess_payload["val_mean"] = select_summary["val_mean"]
-    assess_payload["val_std"] = select_summary["val_std"]
+    assess_payload["val_mean"] = chosen["val_mean"]
+    assess_payload["val_std"] = chosen["val_std"]
 
     assess_dir = run_experiment("cup", "assess", assess_payload,
                                 tag="pytest-assess", results_root=tmp_path)
     assess_summary = json.loads((assess_dir / "summary.json").read_text())
 
     assert {"mee_tr_mean", "mee_ts_mean", "mee_vl_mean"} <= set(assess_summary)
-    assert assess_summary["mee_vl_mean"] == select_summary["val_mean"]
+    assert assess_summary["mee_vl_mean"] == chosen["val_mean"]
     assert assess_summary["mee_ts_mean"] >= 0.0

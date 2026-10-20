@@ -8,10 +8,11 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import json
+from pathlib import Path
 
 from .config_io import load_config
 from .engine import run_experiment
+from . import show_grid_search
 
 
 def main() -> None:
@@ -29,8 +30,14 @@ def main() -> None:
     payload = cfg.get("config", {})
 
     run_dir = run_experiment(task, mode, payload, tag=tag)
-    print(f"OK — results in {run_dir}")
-    print(json.dumps({"run_id": run_dir.name}, indent=2))
+    try:
+        display_path = run_dir.relative_to(Path.cwd())
+    except ValueError:
+        display_path = run_dir
+    print(f"Risultati salvati: {display_path}")
+    if mode == "select":
+        print()
+        show_grid_search.main([str(run_dir)])
 
 
 if __name__ == "__main__":

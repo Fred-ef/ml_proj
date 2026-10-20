@@ -106,9 +106,23 @@ def test_sgd_and_adagrad_accept_a_linear_decay_lr_schedule_but_quickprop_does_no
 def test_select_payload_defaults_n_core_to_all_cores_and_accepts_an_override():
     default = JobRequest(task="monk1", mode="select", select={}).payload()
     assert default["n_core"] == -1
+    assert "k" not in default and "val_fraction" not in default
 
     overridden = JobRequest(task="monk1", mode="select", select={"n_core": 2}).payload()
     assert overridden["n_core"] == 2
+
+
+def test_select_payload_accepts_holdout_or_kfold_but_not_both():
+    holdout = JobRequest(task="monk1", mode="select",
+                         select={"val_fraction": 0.3}).payload()
+    assert holdout["val_fraction"] == 0.3 and "k" not in holdout
+
+    kfold = JobRequest(task="monk1", mode="select", select={"k": 4}).payload()
+    assert kfold["k"] == 4 and "val_fraction" not in kfold
+
+    with pytest.raises(Exception, match="val_fraction applies only"):
+        JobRequest(task="monk1", mode="select",
+                   select={"k": 4, "val_fraction": 0.3})
 
 
 def test_assess_omits_val_fields_when_not_provided_but_keeps_them_when_given():
@@ -269,11 +283,12 @@ def test_post_jobs_select_then_assess_chain_on_cup_via_http():
         assert select_job["status"] == "done"
         select_summary = client.get(f"/runs/cup/{select_job['run_id']}").json()["summary"]
 
-        assess_cfg = dict(select_summary["best_config"])
-        assess_cfg["epochs"] = select_summary["best_epoch_median"]
+        chosen = select_summary["ranking"][0]
+        assess_cfg = dict(chosen["config"])
+        assess_cfg["epochs"] = chosen["best_epoch_median"]
         assess_cfg["n_trials"] = 2
-        assess_cfg["val_mean"] = select_summary["val_mean"]
-        assess_cfg["val_std"] = select_summary["val_std"]
+        assess_cfg["val_mean"] = chosen["val_mean"]
+        assess_cfg["val_std"] = chosen["val_std"]
 
         r2 = client.post("/jobs", json={"task": "cup", "mode": "assess",
                                         "tag": "pytest-service", "assess": assess_cfg})
@@ -282,7 +297,7 @@ def test_post_jobs_select_then_assess_chain_on_cup_via_http():
         assert assess_job["status"] == "done"
 
         assess_summary = client.get(f"/runs/cup/{assess_job['run_id']}").json()["summary"]
-        assert assess_summary["mee_vl_mean"] == select_summary["val_mean"]
+        assert assess_summary["mee_vl_mean"] == chosen["val_mean"]
     finally:
         _cleanup_run("cup", select_job["run_id"])
         if assess_job is not None:

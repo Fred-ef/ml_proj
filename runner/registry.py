@@ -12,6 +12,7 @@ from src.utils.metrics import METRICS
 from src.model_selection.build import build_model
 from src.model_selection.grid_search import grid_search
 from src.model_selection.trials import run_trials
+from .search_space import iter_search_configs
 
 
 @dataclass(frozen=True)
@@ -84,29 +85,39 @@ def _train(payload: dict, data: tuple, profile: TaskProfile):
 
 
 def _select(payload: dict, data: tuple, profile: TaskProfile):
-    """Run grid search with k-fold CV and return a ranked summary."""
+    """Run grid search with holdout or k-fold validation."""
     X_tr, y_tr, _X_te, _y_te = data
     fixed = {**payload.get("fixed", {}), "n_inputs": payload["n_inputs"]}
-    grid = payload["grid"]
-    full_grid = {**{key: [val] for key, val in fixed.items()}, **grid}
+    if ("grid" in payload) == ("search" in payload):
+        raise ValueError("select requires exactly one of grid or search")
+    if "search" in payload:
+        configurations = iter_search_configs(fixed, payload["search"])
+    else:
+        grid = payload["grid"]
+        configurations = {**{key: [val] for key, val in fixed.items()}, **grid}
 
     metric = profile.primary
     # -1 uses all cores; 1 runs sequentially; any other value sets worker count.
-    results = grid_search(full_grid, build_model, X_tr, y_tr,
-                          k=payload.get("k", 5), seed=payload.get("seed"),
-                          metric=metric, n_core=payload.get("n_core", -1))
-    best = results[0]
+    search = grid_search(configurations, build_model, X_tr, y_tr,
+                         k=payload.get("k"), seed=payload.get("seed"),
+                         metric=metric, n_core=payload.get("n_core", -1),
+                         val_fraction=payload.get("val_fraction"))
+    results = search["ranking"]
+    aggregate = search["aggregate"]
     mean_key, std_key = f"val_{metric}_mean", f"val_{metric}_std"
+    train_mean_key, train_std_key = f"train_{metric}_mean", f"train_{metric}_std"
     summary = {
         "metric": metric,
+        "validation_mode": "kfold" if payload.get("k") is not None else "holdout",
         "n_configs": len(results),
-        "val_mean": best[mean_key],
-        "val_std": best[std_key],
-        "best_epoch_median": best["best_epoch_median"],
-        "best_config": best["config"],
+        "aggregate": aggregate,
         "ranking": [
-            {"val_mean": r[mean_key], "val_std": r[std_key],
-             "best_epoch_median": r["best_epoch_median"], "config": r["config"]}
+            {"train_error": r["train_error"], "val_error": r["val_error"],
+             "train_mean": r[train_mean_key], "train_std": r[train_std_key],
+             "val_mean": r[mean_key], "val_std": r[std_key],
+             "best_epoch_median": r["best_epoch_median"],
+             "best_epochs": r["best_epochs"],
+             "epochs_run": r["epochs_run"], "config": r["config"]}
             for r in results
         ],
     }

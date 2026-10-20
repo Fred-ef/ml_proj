@@ -47,6 +47,7 @@ def cross_validate(build_model, config: dict, X, Y, k: int = 5, seed: int | None
     val_scores = []
     train_scores = []
     best_epochs = []
+    epochs_run = []
 
     for fold_idx, (train_idx, val_idx) in enumerate(kfold_indices(len(X), k, seed)):
 
@@ -71,7 +72,7 @@ def cross_validate(build_model, config: dict, X, Y, k: int = 5, seed: int | None
 
         patience = config.get('patience', None)
         if patience is not None:
-            min_delta = config.get('min_delta', 0.0)
+            min_delta = config.get('min_delta') or 0.0
             es_callback = EarlyStopping(patience=patience, min_delta=min_delta)
         else:
             es_callback = None
@@ -86,11 +87,15 @@ def cross_validate(build_model, config: dict, X, Y, k: int = 5, seed: int | None
             metrics={metric: metric_fn} if metric_fn else None
         )
 
-        # Use the training and validation scores from the same best epoch.
-        best_idx = int(pick(history[val_key]))
-        val_scores.append(history[val_key][best_idx])
-        train_scores.append(history[train_key][best_idx])
-        best_epochs.append(best_idx + 1)
+        # Without early stopping, score the final trained model. With early
+        # stopping, retain the validation-selected epoch for compatibility.
+        completed = len(history[val_key])
+        selected_idx = (completed - 1 if es_callback is None
+                        else int(pick(history[val_key])))
+        val_scores.append(history[val_key][selected_idx])
+        train_scores.append(history[train_key][selected_idx])
+        best_epochs.append(selected_idx + 1)
+        epochs_run.append(completed)
 
     # Return plain Python values so the result is easy to serialize.
     return {
@@ -99,5 +104,6 @@ def cross_validate(build_model, config: dict, X, Y, k: int = 5, seed: int | None
         f"train_{metric}_mean": float(np.mean(train_scores)),
         f"train_{metric}_std": float(np.std(train_scores)),
         f"best_epoch_median": int(np.median(best_epochs)),
-        f"best_epochs": best_epochs
+        f"best_epochs": best_epochs,
+        "epochs_run": epochs_run,
     }

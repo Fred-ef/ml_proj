@@ -37,7 +37,9 @@ def build_model(config: dict) -> Network:
     for spec in config["arch"]:
         act = _ACT[spec["act"]]()                                   
         init_name   = spec.get("init", config.get("init", "uniform"))
-        init_kwargs = spec.get("init_kwargs", {})
+        init_kwargs = spec.get("init_kwargs")
+        if init_kwargs is None:
+            init_kwargs = config.get("init_kwargs") or {}
         init = _INIT[init_name](**init_kwargs)                     
         layers.append(Dense(n_in, spec["units"], act, init))
         n_in = spec["units"]                                        
@@ -49,7 +51,7 @@ def build_model(config: dict) -> Network:
     if "lr" in opt_cfg and isinstance(opt_cfg["lr"], dict):
         lr_cfg = dict(opt_cfg["lr"])
         lr_type = lr_cfg.pop("type")
-        opt_cfg["lr"] = _LR_SCHEDULERS[lr_type](**lr_cfg)
+        opt_cfg["lr"] = _LR_SCHEDULES[lr_type](**lr_cfg)
         
     optimizer = _OPT[opt_type](**opt_cfg)
 

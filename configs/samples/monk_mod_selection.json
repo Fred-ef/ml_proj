@@ -1,0 +1,64 @@
+{
+  "task": "monk1",
+  "mode": "select",
+  "tag": "grid-sample",
+  "config": {
+    "seed": 0,
+    "n_core": null,
+    "k": null,
+    "val_fraction": 0.2,
+    "fixed": {
+      "init": "glorot",
+      "init_kwargs": null,
+      "loss": "mse",
+      "epochs": 10,
+      "batch_size": null,
+      "scale": null,
+      "reg": {
+        "type": "l2",
+        "lam": null
+      },
+      "patience": null,
+      "min_delta": null
+    },
+    "search": {
+      "hidden_layers": {
+        "scale": "int",
+        "start": 1,
+        "stop": 2
+      },
+      "hidden_units": [
+        {
+          "scale": "log",
+          "start": 1,
+          "stop": 2,
+          "factor": 2
+        },
+        {
+          "scale": "log",
+          "start": 1,
+          "stop": 2,
+          "factor": 2
+        }
+      ],
+      "hidden_activation": "tanh",
+      "output": {
+        "units": 1,
+        "activation": "sigmoid"
+      },
+      "optimizer": {
+        "type": "sgd",
+        "lr": {
+          "scale": "log",
+          "start": 0.1,
+          "stop": 0.01,
+          "factor": 10
+        },
+        "momentum": null,
+        "nesterov": null,
+        "epsilon": null,
+        "mu": null
+      }
+    }
+  }
+}

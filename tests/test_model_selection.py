@@ -1,7 +1,7 @@
 """Model-selection tests: k-fold CV, grid search, and multi-seed trials
 
 - Selection metrics registry (name -> function + "better" direction)
-- cross_validate's metric-directed epoch pick
+- cross_validate's final-epoch and metric-directed epoch selection
 - grid_search's declarative nested grid
 - run_trials' seed aggregation + early stopping
 
@@ -15,6 +15,7 @@ from src.nn.network import Network
 from src.utils.metrics import METRICS, mee, mse, accuracy
 from src.model_selection.build import build_model
 from src.model_selection.kfold import cross_validate
+from src.model_selection.holdout import holdout_validate
 from src.model_selection.grid_search import iter_grid, grid_search
 from src.model_selection.trials import run_trials
 
@@ -110,13 +111,41 @@ def test_cross_validate_default_metric_is_loss():
     X, Y = regression_data()
     result = cross_validate(build_model, regression_config(), X, Y, k=3, seed=0)
     assert set(result) == {"val_loss_mean", "val_loss_std", "train_loss_mean",
-                           "train_loss_std", "best_epoch_median", "best_epochs"}
+                           "train_loss_std", "best_epoch_median", "best_epochs",
+                           "epochs_run"}
 
 
-# --- cross_validate: metric-directed epoch pick (deterministic, no training) -
+# --- cross_validate: epoch selection (deterministic, no training) ------------
 # fit is stubbed to return a fixed history curve so these pin the
-# argmax/argmin direction logic itself, independent of whether the tiny net
-# actually converges
+# last-epoch and argmax/argmin logic, independent of whether the tiny net
+# actually converges.
+
+
+@pytest.mark.parametrize("metric, expected_train, expected_val", [
+    ("loss", 0.4, 0.3),
+    ("acc", 0.7, 0.8),
+    ("mee", 0.4, 0.3),
+])
+def test_cross_validate_without_early_stopping_scores_final_epoch(
+        monkeypatch, metric, expected_train, expected_val):
+    history = {
+        "loss": [0.9, 0.1, 0.4], "val_loss": [0.9, 0.05, 0.3],
+        "acc": [0.5, 0.95, 0.7], "val_acc": [0.5, 0.99, 0.8],
+        "mee": [0.9, 0.05, 0.4], "val_mee": [0.9, 0.01, 0.3],
+    }
+    monkeypatch.setattr(Network, "fit", lambda self, *a, **k: dict(history))
+    X, Y = (classification_data(n=10) if metric == "acc"
+            else regression_data(n=10))
+    config = (classification_config(epochs=3) if metric == "acc"
+              else regression_config(epochs=3))
+
+    result = cross_validate(build_model, config, X, Y, k=2, seed=0, metric=metric)
+
+    assert result[f"train_{metric}_mean"] == pytest.approx(expected_train)
+    assert result[f"val_{metric}_mean"] == pytest.approx(expected_val)
+    assert result["best_epochs"] == [3, 3]
+    assert result["best_epoch_median"] == 3
+    assert result["epochs_run"] == [3, 3]
 
 def test_cross_validate_picks_the_max_epoch_for_a_higher_is_better_metric(monkeypatch):
     fixed_history = {
@@ -128,12 +157,14 @@ def test_cross_validate_picks_the_max_epoch_for_a_higher_is_better_metric(monkey
     monkeypatch.setattr(Network, "fit", lambda self, *a, **k: dict(fixed_history))
 
     X, y = classification_data(n=10)
-    result = cross_validate(build_model, classification_config(epochs=5), X, y, k=2, seed=0, metric="acc")
+    result = cross_validate(build_model, classification_config(epochs=5, patience=10),
+                            X, y, k=2, seed=0, metric="acc")
 
     assert result["val_acc_mean"] == pytest.approx(0.95)     # the MAX, not e.g. the last epoch
     assert result["train_acc_mean"] == pytest.approx(0.90)   # train value at the SAME index
     assert result["best_epochs"] == [3, 3]                   # index 2 -> 1-based epoch 3
     assert result["best_epoch_median"] == 3
+    assert result["epochs_run"] == [5, 5]
 
 
 def test_cross_validate_picks_the_min_epoch_for_a_lower_is_better_metric(monkeypatch):
@@ -146,10 +177,53 @@ def test_cross_validate_picks_the_min_epoch_for_a_lower_is_better_metric(monkeyp
     monkeypatch.setattr(Network, "fit", lambda self, *a, **k: dict(fixed_history))
 
     X, Y = regression_data(n=10)
-    result = cross_validate(build_model, regression_config(epochs=5), X, Y, k=2, seed=0, metric="mee")
+    result = cross_validate(build_model, regression_config(epochs=5, patience=10),
+                            X, Y, k=2, seed=0, metric="mee")
 
     assert result["val_mee_mean"] == pytest.approx(0.05)
     assert result["best_epochs"] == [3, 3]
+    assert result["epochs_run"] == [5, 5]
+
+
+def test_cross_validate_records_actual_epochs_run_per_fold(monkeypatch):
+    histories = iter([
+        {"loss": [0.9, 0.5], "val_loss": [0.8, 0.2]},
+        {"loss": [0.9, 0.4, 0.5], "val_loss": [0.8, 0.1, 0.3]},
+    ])
+    monkeypatch.setattr(Network, "fit", lambda self, *a, **k: next(histories))
+    X, Y = regression_data(n=10)
+
+    result = cross_validate(build_model, regression_config(epochs=10, patience=2),
+                            X, Y, k=2, seed=0)
+
+    assert result["epochs_run"] == [2, 3]
+    assert result["best_epochs"] == [2, 2]
+    assert result["best_epoch_median"] == 2
+
+
+def test_holdout_selects_final_epoch_without_early_stopping_and_best_with_it(monkeypatch):
+    history = {
+        "loss": [0.9, 0.2, 0.4], "val_loss": [0.9, 0.1, 0.3],
+        "acc": [0.5, 0.95, 0.7], "val_acc": [0.5, 0.99, 0.8],
+    }
+    monkeypatch.setattr(Network, "fit", lambda self, *a, **k: dict(history))
+    X, y = classification_data(n=10)
+    train_idx, val_idx = np.arange(8), np.arange(8, 10)
+
+    final = holdout_validate(build_model, classification_config(epochs=3),
+                             X, y, train_idx, val_idx, seed=0, metric="acc")
+    selected = holdout_validate(build_model,
+                                classification_config(epochs=3, patience=10),
+                                X, y, train_idx, val_idx, seed=0, metric="acc")
+
+    assert final["train_acc_mean"] == pytest.approx(0.7)
+    assert final["val_acc_mean"] == pytest.approx(0.8)
+    assert final["best_epochs"] == [3]
+    assert final["epochs_run"] == [3]
+    assert selected["train_acc_mean"] == pytest.approx(0.95)
+    assert selected["val_acc_mean"] == pytest.approx(0.99)
+    assert selected["best_epochs"] == [2]
+    assert selected["epochs_run"] == [3]
 
 
 # --- cross_validate: real end-to-end wiring (metrics dict really reaches fit) -
@@ -222,7 +296,7 @@ def test_grid_search_supports_variable_architecture_depth():
         "reg": [None], "n_inputs": [3], "epochs": [5], "batch_size": [None],
     }
     X, Y = regression_data(n=15)
-    results = grid_search(grid, build_model, X, Y, k=2, seed=0, metric="mee")
+    results = grid_search(grid, build_model, X, Y, k=2, seed=0, metric="mee")["ranking"]
     depths = sorted(len(r["config"]["arch"]) for r in results)
     assert depths == [2, 3]
 
@@ -235,9 +309,12 @@ def test_grid_search_ranks_ascending_for_a_lower_is_better_metric():
         "reg": [None], "n_inputs": [3], "epochs": [15], "batch_size": [None],
     }
     X, Y = regression_data()
-    results = grid_search(grid, build_model, X, Y, k=2, seed=0, metric="mee")
+    search = grid_search(grid, build_model, X, Y, k=2, seed=0, metric="mee")
+    results = search["ranking"]
     means = [r["val_mee_mean"] for r in results]
     assert means == sorted(means)   # ascending: lowest MEE (best) first
+    assert search["aggregate"]["val_error"]["mean"] == pytest.approx(np.mean(means))
+    assert search["aggregate"]["val_error"]["variance"] == pytest.approx(np.var(means))
 
 
 def test_grid_search_ranks_descending_for_a_higher_is_better_metric():
@@ -248,7 +325,7 @@ def test_grid_search_ranks_descending_for_a_higher_is_better_metric():
         "reg": [None], "n_inputs": [3], "epochs": [15], "batch_size": [None],
     }
     X, y = classification_data()
-    results = grid_search(grid, build_model, X, y, k=2, seed=0, metric="acc")
+    results = grid_search(grid, build_model, X, y, k=2, seed=0, metric="acc")["ranking"]
     means = [r["val_acc_mean"] for r in results]
     assert means == sorted(means, reverse=True)   # descending: highest accuracy (best) first
 
@@ -287,7 +364,95 @@ def test_grid_search_parallel_matches_sequential_ranking():
     def signature(results):
         return [(str(r["config"]), round(r["val_mee_mean"], 10)) for r in results]
 
-    assert signature(seq) == signature(par)
+    assert signature(seq["ranking"]) == signature(par["ranking"])
+    assert seq["aggregate"] == par["aggregate"]
+
+
+def test_grid_search_holdout_uses_one_split_and_aggregates_classification_errors(
+        monkeypatch, capsys):
+    from src.model_selection import grid_search as grid_module
+
+    seen_splits = []
+
+    def fake_holdout_validate(build_model, config, X, Y, train_idx, val_idx,
+                             seed=None, metric="loss"):
+        seen_splits.append((train_idx.copy(), val_idx.copy()))
+        candidate = config["candidate"]
+        return {
+            "train_acc_mean": 0.8 - 0.1 * candidate,
+            "train_acc_std": None,
+            "val_acc_mean": 0.7 - 0.1 * candidate,
+            "val_acc_std": None,
+            "best_epoch_median": 3,
+            "best_epochs": [3],
+        }
+
+    monkeypatch.setattr(grid_module, "holdout_validate", fake_holdout_validate)
+    X = np.arange(10).reshape(-1, 1)
+    Y = np.zeros((10, 1))
+    search = grid_search({"candidate": [0, 1, 2]}, build_model, X, Y,
+                         seed=7, metric="acc", val_fraction=0.3)
+
+    assert capsys.readouterr().out.strip() == (
+        "Grid search: 3 configurazioni | holdout | sequenziale")
+
+    assert len(seen_splits) == 3
+    first_train, first_val = seen_splits[0]
+    assert len(first_train) == 7 and len(first_val) == 3
+    assert set(first_train).isdisjoint(first_val)
+    assert all(np.array_equal(tr, first_train) and np.array_equal(vl, first_val)
+               for tr, vl in seen_splits)
+    assert [r["val_error"] for r in search["ranking"]] == pytest.approx([0.3, 0.4, 0.5])
+    assert search["aggregate"]["train_error"]["mean"] == pytest.approx(0.3)
+    assert search["aggregate"]["train_error"]["variance"] == pytest.approx(2 / 300)
+    assert search["aggregate"]["val_error"]["mean"] == pytest.approx(0.4)
+    assert search["aggregate"]["val_error"]["variance"] == pytest.approx(2 / 300)
+
+
+def test_grid_search_holdout_parallel_matches_sequential():
+    grid = {
+        "arch": [[{"units": 4, "act": "tanh"},
+                  {"units": 2, "act": "identity"}]],
+        "optim": [{"type": "sgd", "lr": 0.05},
+                  {"type": "sgd", "lr": 0.1}],
+        "n_inputs": [3], "epochs": [5],
+    }
+    X, Y = regression_data()
+    seq = grid_search(grid, build_model, X, Y, seed=3, metric="mee",
+                      val_fraction=0.2, n_core=1)
+    par = grid_search(grid, build_model, X, Y, seed=3, metric="mee",
+                      val_fraction=0.2, n_core=2)
+
+    assert [(r["config"], r["train_error"], r["val_error"])
+            for r in seq["ranking"]] == [
+                (r["config"], r["train_error"], r["val_error"])
+                for r in par["ranking"]]
+    assert seq["aggregate"] == par["aggregate"]
+
+
+@pytest.mark.parametrize("metric,expected_train,expected_val", [
+    ("mee", 5.0, 20.0),
+    ("loss", 25.0, 425.0),
+])
+def test_holdout_reports_errors_in_original_target_units_when_scaled(
+        metric, expected_train, expected_val):
+    from src.model_selection.holdout import holdout_validate
+
+    class DummyModel:
+        def fit(self, X_train, Y_train, *, validation_data, metrics, **kwargs):
+            _X_val, Y_val = validation_data
+            name, score_fn = next(iter(metrics.items()))
+            return {
+                name: [score_fn(np.zeros_like(Y_train), Y_train)],
+                f"val_{name}": [score_fn(np.zeros_like(Y_val), Y_val)],
+            }
+
+    X = np.arange(4, dtype=float).reshape(-1, 1)
+    Y = np.array([[10.0], [20.0], [30.0], [40.0]])
+    result = holdout_validate(lambda _cfg: DummyModel(), {"scale": True}, X, Y,
+                              np.array([0, 1]), np.array([2, 3]), metric=metric)
+    assert result[f"train_{metric}_mean"] == pytest.approx(expected_train)
+    assert result[f"val_{metric}_mean"] == pytest.approx(expected_val)
 
 
 # --- run_trials: generic scoring + median trial + opt-in early stopping ------
