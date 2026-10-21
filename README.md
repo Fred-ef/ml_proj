@@ -74,12 +74,29 @@ configuration saved in `summary.json`, add `--all`. It also accepts the path to
 
 `train` runs repeated training without using the test set. With `patience`, it
 creates one reproducible holdout from the training data (20% by default, or
-`val_fraction` if set) and uses that validation loss for early stopping. Without
-`patience` or `val_fraction`, it trains on all available training examples and
+`val_fraction` if set) and uses the task's validation metric for early stopping.
+Without `patience` or `val_fraction`, it trains on all available training examples and
 reports only training scores. `select` uses its own holdout or k-fold validation
 to compare configurations. `assess` trains for the fixed `epochs` and evaluates
 the held-out test set only after training; any carried-over `patience` setting
 has no effect in this mode.
+Set `assess.config.epochs` to the chosen configuration's
+`best_epoch_median` from `select`; the CLI does not copy it automatically.
+
+For MONK, early stopping monitors validation accuracy (higher is better). For
+CUP, it monitors validation MEE in the original target units (lower is better).
+The best checkpoint follows the same metric and retains the first epoch when
+scores tie. When early stopping is enabled, the model's weights are restored to
+that checkpoint before it is scored. `min_delta` is an absolute improvement
+threshold for resetting the `patience` counter; it does not determine which
+checkpoint is best. For MONK, `min_delta: 0` lets every accuracy improvement
+reset the counter. In CUP, any nonzero `min_delta` is in original MEE units.
+
+MONK's one-hot inputs and 0/1 targets are used without scaling; `scale: true`
+is rejected for MONK. For CUP, `scale: true` fits input and target scalers on
+the training portion only. The network trains with scaled targets, but
+validation and test MEE compare
+predictions and targets in their original units.
 
 ### Experiment seeds
 

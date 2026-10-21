@@ -18,10 +18,10 @@ opzionali, `null` ha questi significati:
 | `config.n_core` | Esecuzione sequenziale | Un numero di processi, oppure `-1` per tutti i core |
 | `config.seed` | Genera un seed principale e lo salva nei risultati | Un intero non negativo per ripetere il run |
 | `fixed.batch_size` | Full batch | `1` per campione, oppure un intero maggiore per mini batch |
-| `fixed.scale` | Nessuna standardizzazione | `true` (per MONK con output sigmoide lasciare disattivato) |
+| `fixed.scale` | Nessuna standardizzazione | `true` per CUP; per MONK viene rifiutato |
 | `fixed.reg.lam` | Nessuna regolarizzazione | Un numero non negativo; `type` può essere `l1` o `l2` |
 | `fixed.patience` | Early stopping disattivato | Un intero positivo |
-| `fixed.min_delta` | Soglia predefinita `0.0` | Un numero non negativo quando si usa early stopping |
+| `fixed.min_delta` | Soglia predefinita `0.0` | Un numero non negativo: variazione di accuracy per MONK, MEE nelle unità originali per CUP; regola solo `patience` |
 | `fixed.init_kwargs` | Parametri predefiniti dell'inizializzatore | Con `init: "uniform"`, ad esempio `{"scale": 0.3}` |
 | `search.optimizer.momentum` | Momentum disattivato (`0.0`) | Un numero tra 0 e 1 con `type: "sgd"` |
 | `search.optimizer.nesterov` | Nesterov disattivato | `true` con SGD e momentum positivo |

@@ -40,6 +40,8 @@ class Network:
                              if shuffle_seed is None else resolve_seed(shuffle_seed))
         self.shuffle_rng = np.random.default_rng(self.shuffle_seed)
         self.history: dict[str, list[float]] = {}
+        self.selected_epoch: int | None = None
+        self.epochs_run = 0
 
         for layer in self.layers:
             layer.build(self.rng)
@@ -71,6 +73,18 @@ class Network:
         for _name in (metrics or {}):
             self.history[_name] = []
             self.history["val_" + _name] = []
+        self.selected_epoch = None
+        self.epochs_run = 0
+        if early_stopping is not None:
+            if validation_data is None:
+                raise ValueError("early_stopping requires validation_data")
+            if early_stopping.monitor not in self.history:
+                raise ValueError(
+                    f"monitored metric {early_stopping.monitor!r} is not available; "
+                    "supply it in metrics"
+                )
+            early_stopping.reset()
+        best_parameters: list[tuple[np.ndarray, np.ndarray]] | None = None
         self.optimizer.reset()
 
         N = x_train.shape[0]
@@ -99,14 +113,25 @@ class Network:
             self.history["loss"].append(self.loss.value(y_tr, y_train))
             for _name, _fn in (metrics or {}).items():
                 self.history[_name].append(_fn(y_tr, y_train))
-            if validation_data:
+            if validation_data is not None:
                 x_val, y_val = validation_data
                 y_val_pred = self.forward(x_val)
                 self.history["val_loss"].append(self.loss.value(y_val_pred, y_val))
                 for _name, _fn in (metrics or {}).items():
                     self.history["val_" + _name].append(_fn(y_val_pred, y_val))
-            if early_stopping and early_stopping.should_stop(self.history["val_loss"]):
-                break
+            if early_stopping is not None:
+                stop = early_stopping.should_stop(self.history[early_stopping.monitor])
+                if early_stopping.improved:
+                    best_parameters = [(layer.W.copy(), layer.b.copy()) for layer in self.layers]
+                if stop:
+                    break
+        self.epochs_run = len(self.history["loss"])
+        if early_stopping is not None:
+            self.selected_epoch = early_stopping.best_epoch
+            if best_parameters is not None:
+                for layer, (weights, bias) in zip(self.layers, best_parameters):
+                    layer.W[...] = weights
+                    layer.b[...] = bias
         return self.history
 
     def predict(self, x: np.ndarray) -> np.ndarray:

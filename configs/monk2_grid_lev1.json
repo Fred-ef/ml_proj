@@ -15,7 +15,7 @@
       "batch_size": 16,
       "scale": null,
       "patience": 10,
-      "min_delta": 0.0001
+      "min_delta": 0.0
     },
     "search": {
       "hidden_layers": {

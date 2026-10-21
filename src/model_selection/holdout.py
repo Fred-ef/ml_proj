@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import numpy as np
 
-from ..data.preprocessing import StandardScaler
 from ..utils.metrics import METRICS
 from ..utils.seeding import derive_seed, resolve_seed
 from .early_stopping import EarlyStopping
+from .scaling import original_target_metric, prepare_split
 
 
 def holdout_indices(n_samples: int, val_fraction: float, seed: int | None = None):
@@ -34,15 +34,10 @@ def holdout_validate(build_model, config: dict, X, Y, train_idx, val_idx,
 
     X_train, Y_train = X[train_idx], Y[train_idx]
     X_val, Y_val = X[val_idx], Y[val_idx]
-    scaler_Y = None
-    if config.get("scale", False):
-        scaler_X = StandardScaler()
-        X_train = scaler_X.fit_transform(X_train)
-        X_val = scaler_X.transform(X_val)
-
-        scaler_Y = StandardScaler()
-        Y_train = scaler_Y.fit_transform(Y_train)
-        Y_val = scaler_Y.transform(Y_val)
+    X_train, Y_train, X_val, Y_val, scaler_Y = prepare_split(
+        X_train, Y_train, X_val, Y_val,
+        scale=bool(config.get("scale")),
+        classification=metric == "acc" or str(config.get("task", "")).startswith("monk"))
 
     report_fn = metric_fn
     report_name = metric if metric_fn else None
@@ -51,12 +46,7 @@ def holdout_validate(build_model, config: dict, X, Y, train_idx, val_idx,
         # the original units so configurations with and without scaling remain
         # comparable. The optimizer still uses its ordinary training loss.
         original_fn = metric_fn if metric_fn else METRICS["mse"][0]
-
-        def original_scale_score(y_pred, y_true):
-            return original_fn(scaler_Y.inverse_transform(y_pred),
-                               scaler_Y.inverse_transform(y_true))
-
-        report_fn = original_scale_score
+        report_fn = original_target_metric(original_fn, scaler_Y)
         if metric == "loss":
             report_name = "reported_loss"
             train_key, val_key = report_name, f"val_{report_name}"
@@ -69,7 +59,9 @@ def holdout_validate(build_model, config: dict, X, Y, train_idx, val_idx,
                          "shuffle_seed": derive_seed(master_seed, "select_shuffle")})
     patience = config.get("patience")
     early_stopping = (EarlyStopping(patience=patience,
-                                    min_delta=config.get("min_delta") or 0.0)
+                                    min_delta=config.get("min_delta") or 0.0,
+                                    monitor=val_key,
+                                    mode="max" if greater_is_better else "min")
                       if patience is not None else None)
     history = model.fit(
         X_train, Y_train,

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Annotated, Any, Literal, Optional, Union
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 Act = Literal["identity", "sigmoid", "tanh", "relu"]
 Init = Literal["uniform", "glorot", "he"]
@@ -71,10 +71,16 @@ class TrainConfig(BaseModel):
     batch_size: Optional[int] = Field(default=None, gt=0)
     seed: Optional[int] = Field(default=0, ge=0)
     n_trials: int = Field(5, gt=0)
+    scale: bool = False
     # early stopping
     patience: Optional[int] = Field(default=None, gt=0)
-    min_delta: float = Field(0.0, ge=0)
+    min_delta: float = Field(0.0, ge=0, allow_inf_nan=False)
     val_fraction: Optional[float] = Field(default=None, gt=0, lt=1)
+
+    @field_validator("min_delta", mode="before")
+    @classmethod
+    def _default_null_min_delta(cls, value: Any) -> Any:
+        return 0.0 if value is None else value
 
 
 class AssessConfig(TrainConfig):
