@@ -103,11 +103,15 @@ def _select(payload: dict, data: tuple, profile: TaskProfile):
         configurations = {**{key: [val] for key, val in fixed.items()}, **grid}
 
     metric = profile.primary
+    # null or missing = one weight initialization per configuration.
+    n_trials = payload.get("n_trials")
+    n_trials = 1 if n_trials is None else n_trials
     # -1 uses all cores; 1 runs sequentially; any other value sets worker count.
     search = grid_search(configurations, build_model, X_tr, y_tr,
                          k=payload.get("k"), seed=payload.get("seed"),
                          metric=metric, n_core=payload.get("n_core", -1),
-                         val_fraction=payload.get("val_fraction"))
+                         val_fraction=payload.get("val_fraction"),
+                         n_trials=n_trials)
     results = search["ranking"]
     aggregate = search["aggregate"]
     mean_key, std_key = f"val_{metric}_mean", f"val_{metric}_std"
@@ -116,6 +120,7 @@ def _select(payload: dict, data: tuple, profile: TaskProfile):
         "metric": metric,
         "validation_mode": "kfold" if payload.get("k") is not None else "holdout",
         "n_configs": len(results),
+        "n_trials": n_trials,
         "aggregate": aggregate,
         "seed_plan": search["seed_plan"],
         "ranking": [
@@ -124,9 +129,17 @@ def _select(payload: dict, data: tuple, profile: TaskProfile):
              "val_mean": r[mean_key], "val_std": r[std_key],
              "best_epoch_median": r["best_epoch_median"],
              "best_epochs": r["best_epochs"],
-             "epochs_run": r["epochs_run"], "config": r["config"]}
+             "epochs_run": r["epochs_run"],
+             "n_trials": r["n_trials"],
+             "train_init_var": r[f"train_{metric}_init_var"],
+             "train_init_std": r[f"train_{metric}_init_std"],
+             "val_init_var": r[f"val_{metric}_init_var"],
+             "val_init_std": r[f"val_{metric}_init_std"],
+             "per_trial_val": r[f"per_trial_val_{metric}"],
+             "config": r["config"]}
             for r in results
         ],
+        "curves": [r["curves"] for r in results],
     }
     return summary, None
 

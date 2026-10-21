@@ -104,6 +104,30 @@ For an executable example with all optional settings visible and `null` values
 for disabled features, see `configs/samples/monk_mod_selection.json` and
 `configs/samples/README.md`.
 
+### Weight initializations and learning curves
+
+With `n_trials` greater than 1 in `select`, every configuration is trained that
+many times with different weight initializations (and batch order) on the same
+validation split. The ranking uses the mean over the trials. For each
+configuration the report adds the variance and standard deviation across
+initializations, and the validation score of each trial. This is different from
+the standard deviation across folds in k-fold validation, which measures how
+much the error changes with the data, and from the mean and variance in the
+aggregate block, which are computed across configurations.
+
+The run directory also contains:
+
+- `curves.json`: mean per-epoch train and validation curves, with their standard
+  deviation across initializations and the number of runs still training at each
+  epoch, for every configuration in ranking order;
+- `curves/rankNN.png`: those curves for the first `plot_top` configurations (5 by
+  default), with a band of one standard deviation. With early stopping, runs end at
+  different epochs: the shaded region marks the epochs where the mean is taken over
+  fewer runs;
+- `curves/top_val.png`: the mean validation curves of those configurations together;
+- `learning_curve.png`: a copy of the plot of the best configuration, which is the
+  one the API and the web console show.
+
 In its `search` section, `scale: "int"` visits every integer from `start` to
 `stop`, including both endpoints. `scale: "log"` starts at `start` and multiplies
 or divides by `factor` (10 by default) until the next value would pass `stop`.

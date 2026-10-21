@@ -33,7 +33,7 @@ def kfold_indices(n_samples: int, k: int, seed: int | None = None):
         yield train_idx, val_idx
 
 
-def cross_validate(build_model, config: dict, X, Y, k: int = 5, seed: int | None = None, metric: str = "loss") -> dict:
+def cross_validate(build_model, config: dict, X, Y, k: int = 5, seed: int | None = None, metric: str = "loss", trial: int = 0) -> dict:
     """Run k-fold CV for one config; return aggregated metrics (mean, std)."""
 
     # Resolve the metric once before looping over folds.
@@ -49,6 +49,8 @@ def cross_validate(build_model, config: dict, X, Y, k: int = 5, seed: int | None
     train_scores = []
     best_epochs = []
     epochs_run = []
+    train_curves = []
+    val_curves = []
 
     master_seed = resolve_seed(seed)
     split_seed = derive_seed(master_seed, "select_split")
@@ -66,10 +68,12 @@ def cross_validate(build_model, config: dict, X, Y, k: int = 5, seed: int | None
             Y_train = scaler_Y.fit_transform(Y_train)
             Y_val = scaler_Y.transform(Y_val)
 
+        index = trial * k + fold_idx
+
         # All configurations share a fold's initialization and batch order.
         model = build_model({**config,
-                             "seed": derive_seed(master_seed, "select_weights", fold_idx),
-                             "shuffle_seed": derive_seed(master_seed, "select_shuffle", fold_idx)})
+                             "seed": derive_seed(master_seed, "select_weights", index),
+                             "shuffle_seed": derive_seed(master_seed, "select_shuffle", index)})
 
         epochs = config.get('epochs', 100)
         batch_size = config.get('batch_size', None)
@@ -91,6 +95,10 @@ def cross_validate(build_model, config: dict, X, Y, k: int = 5, seed: int | None
             metrics={metric: metric_fn} if metric_fn else None
         )
 
+        # Populating lists for train and validation curves
+        train_curves.append(history[train_key])
+        val_curves.append(history[val_key])
+
         # Without early stopping, score the final trained model. With early
         # stopping, retain the validation-selected epoch for compatibility.
         completed = len(history[val_key])
@@ -110,4 +118,8 @@ def cross_validate(build_model, config: dict, X, Y, k: int = 5, seed: int | None
         f"best_epoch_median": int(np.median(best_epochs)),
         f"best_epochs": best_epochs,
         "epochs_run": epochs_run,
+        "train_scores": [float(s) for s in train_scores],
+        "val_scores": [float(s) for s in val_scores],
+        "train_curves": train_curves,
+        "val_curves": val_curves,
     }

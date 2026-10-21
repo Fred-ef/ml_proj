@@ -7,6 +7,8 @@
     "n_core": null,
     "k": null,
     "val_fraction": 0.2,
+    "n_trials": 3,
+    "plot_top": 5,
     "fixed": {
       "init": "glorot",
       "init_kwargs": null,

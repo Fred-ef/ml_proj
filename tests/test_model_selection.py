@@ -112,7 +112,8 @@ def test_cross_validate_default_metric_is_loss():
     result = cross_validate(build_model, regression_config(), X, Y, k=3, seed=0)
     assert set(result) == {"val_loss_mean", "val_loss_std", "train_loss_mean",
                            "train_loss_std", "best_epoch_median", "best_epochs",
-                           "epochs_run"}
+                           "epochs_run", "train_scores", "val_scores",
+                           "train_curves", "val_curves"}
 
 
 # --- cross_validate: epoch selection (deterministic, no training) ------------
@@ -375,7 +376,7 @@ def test_grid_search_holdout_uses_one_split_and_aggregates_classification_errors
     seen_splits = []
 
     def fake_holdout_validate(build_model, config, X, Y, train_idx, val_idx,
-                             seed=None, metric="loss"):
+                             seed=None, metric="loss", trial=0):
         seen_splits.append((train_idx.copy(), val_idx.copy()))
         candidate = config["candidate"]
         return {
@@ -385,6 +386,11 @@ def test_grid_search_holdout_uses_one_split_and_aggregates_classification_errors
             "val_acc_std": None,
             "best_epoch_median": 3,
             "best_epochs": [3],
+            "epochs_run": [3],
+            "train_scores": [0.8 - 0.1 * candidate],
+            "val_scores": [0.7 - 0.1 * candidate],
+            "train_curves": [[0.8 - 0.1 * candidate]],
+            "val_curves": [[0.7 - 0.1 * candidate]],
         }
 
     monkeypatch.setattr(grid_module, "holdout_validate", fake_holdout_validate)

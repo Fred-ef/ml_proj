@@ -98,6 +98,13 @@ def save_run(run_dir: str | Path, config: dict, summary: dict,
     return run_dir
 
 
+def save_grid_curves(run_dir: str | Path, curves: list[dict]) -> Path:
+    """Write curves.json: one entry per configuration, in ranking order."""
+    path = Path(run_dir) / "curves.json"
+    _dump_json(path, [{"rank": rank, **entry} for rank, entry in enumerate(curves, start=1)])
+    return path
+
+
 # ------------------------------------------------------- index (comparison table)
 def flatten(d: dict, parent: str = "", sep: str = ".") -> dict:
     """{'optim': {'lr': .1}} -> {'optim.lr': .1}. Lists are kept as atomic values"""

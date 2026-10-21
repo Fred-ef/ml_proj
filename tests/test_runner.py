@@ -184,6 +184,77 @@ def test_random_select_seed_is_saved_and_can_be_replayed(tmp_path):
     assert replay_summary == summary
 
 
+_TINY_MONK_ARCH = [{"units": 2, "act": "tanh", "init": "uniform", "init_kwargs": {"scale": 0.3}},
+                   {"units": 1, "act": "sigmoid", "init": "uniform", "init_kwargs": {"scale": 0.3}}]
+
+
+@pytest.mark.parametrize("validation, runs", [({"val_fraction": 0.25}, 3), ({"k": 3}, 9)])
+def test_run_experiment_select_with_trials_saves_spread_and_curves(tmp_path, validation, runs):
+    payload = {
+        **validation, "seed": 0, "n_core": 1, "n_trials": 3, "plot_top": 2,
+        "fixed": {"loss": "mse", "epochs": 6, "batch_size": None},
+        "grid": {
+            "arch": [_TINY_MONK_ARCH],
+            "optim": [{"type": "sgd", "lr": lr, "momentum": 0.9} for lr in (0.1, 0.03, 0.01)],
+            "reg": [None],
+        },
+    }
+    run_dir = run_experiment("monk1", "select", payload,
+                             tag="pytest-trials", results_root=tmp_path)
+    summary = json.loads((run_dir / "summary.json").read_text())
+
+    # summary.json keeps the spread across initializations, not the (large) curves.
+    assert "curves" not in summary
+    assert summary["n_trials"] == 3
+    assert len(summary["seed_plan"]["models"]) == runs     # one stream pair per (trial, fold)
+    for row in summary["ranking"]:
+        assert row["n_trials"] == 3 and len(row["per_trial_val"]) == 3
+        assert row["val_init_var"] == pytest.approx(np.var(row["per_trial_val"]))
+        assert row["val_init_std"] == pytest.approx(np.std(row["per_trial_val"]))
+        assert len(row["epochs_run"]) == runs
+
+    # curves.json: one entry per configuration, in ranking order, 6 epochs each.
+    curves = json.loads((run_dir / "curves.json").read_text())
+    assert [entry["rank"] for entry in curves] == [1, 2, 3]
+    for entry in curves:
+        for name in ("train", "val"):
+            assert len(entry[name]["mean"]) == len(entry[name]["std"]) == 6
+            assert entry[name]["n_alive"] == [runs] * 6    # no early stopping: nobody stops
+
+    # Plots: the first plot_top configurations, the comparison and the copy shown by the API.
+    assert {p.name for p in (run_dir / "curves").iterdir()} == {
+        "rank01.png", "rank02.png", "top_val.png"}
+    assert ((run_dir / "learning_curve.png").read_bytes()
+            == (run_dir / "curves" / "rank01.png").read_bytes())
+
+
+def test_select_null_n_trials_and_plot_top_use_their_defaults(tmp_path):
+    payload = {
+        "val_fraction": 0.25, "seed": 0, "n_core": 1, "n_trials": None, "plot_top": None,
+        "fixed": {"loss": "mse", "epochs": 3, "batch_size": None},
+        "grid": {"arch": [_TINY_MONK_ARCH], "optim": [{"type": "sgd", "lr": 0.1}], "reg": [None]},
+    }
+    run_dir = run_experiment("monk1", "select", payload,
+                             tag="pytest-null", results_root=tmp_path)
+    summary = json.loads((run_dir / "summary.json").read_text())
+
+    assert summary["n_trials"] == 1
+    assert summary["ranking"][0]["val_init_std"] is None   # one run: no spread to report
+    assert (run_dir / "curves" / "rank01.png").is_file()
+
+
+def test_select_plot_top_zero_saves_curves_but_no_plots(tmp_path):
+    payload = {
+        "val_fraction": 0.25, "seed": 0, "n_core": 1, "n_trials": 2, "plot_top": 0,
+        "fixed": {"loss": "mse", "epochs": 3, "batch_size": None},
+        "grid": {"arch": [_TINY_MONK_ARCH], "optim": [{"type": "sgd", "lr": 0.1}], "reg": [None]},
+    }
+    run_dir = run_experiment("monk1", "select", payload,
+                             tag="pytest-noplots", results_root=tmp_path)
+    assert (run_dir / "curves.json").is_file()
+    assert not (run_dir / "curves").exists() and not (run_dir / "learning_curve.png").exists()
+
+
 # --- engine: the index stays a flat comparison table --------------------------
 
 def test_is_index_scalar_keeps_flat_values_and_drops_nested_structures():

@@ -23,7 +23,7 @@ def holdout_indices(n_samples: int, val_fraction: float, seed: int | None = None
 
 
 def holdout_validate(build_model, config: dict, X, Y, train_idx, val_idx,
-                     seed: int | None = None, metric: str = "loss") -> dict:
+                     seed: int | None = None, metric: str = "loss", trial: int = 0) -> dict:
     """Train once; use the final epoch unless early stopping is enabled."""
     if metric == "loss":
         metric_fn, greater_is_better = None, False
@@ -65,8 +65,8 @@ def holdout_validate(build_model, config: dict, X, Y, train_idx, val_idx,
 
     master_seed = resolve_seed(seed)
     model = build_model({**config,
-                         "seed": derive_seed(master_seed, "select_weights"),
-                         "shuffle_seed": derive_seed(master_seed, "select_shuffle")})
+                         "seed": derive_seed(master_seed, "select_weights", trial),
+                         "shuffle_seed": derive_seed(master_seed, "select_shuffle", trial)})
     patience = config.get("patience")
     early_stopping = (EarlyStopping(patience=patience,
                                     min_delta=config.get("min_delta") or 0.0)
@@ -95,4 +95,8 @@ def holdout_validate(build_model, config: dict, X, Y, train_idx, val_idx,
         "best_epoch_median": selected_idx + 1,
         "best_epochs": [selected_idx + 1],
         "epochs_run": [epochs_run],
+        "train_scores": [history[train_key][selected_idx]],
+        "val_scores": [history[val_key][selected_idx]],
+        "train_curves": [history[train_key]],
+        "val_curves": [history[val_key]],
     }

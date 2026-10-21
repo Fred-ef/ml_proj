@@ -91,6 +91,8 @@ class SelectConfig(BaseModel):
     val_fraction: Optional[float] = Field(default=None, gt=0, lt=1)
     seed: Optional[int] = Field(default=None, ge=0)
     n_core: Optional[int] = -1
+    n_trials: int = Field(1, gt=0)      # weight initializations per configuration
+    plot_top: int = Field(5, ge=0)      # band plots saved for the best configurations
     fixed: dict[str, Any] = Field(default_factory=dict)
     grid: dict[str, list[Any]] = Field(default_factory=dict)
 

@@ -85,6 +85,30 @@ def test_saved_report_shows_common_settings_and_complete_config_blocks(tmp_path,
     assert "Mediana epoche di miglior validation (criterio precedente)" in kfold_report
 
 
+def test_report_names_what_the_aggregate_block_measures_and_points_to_the_curves(tmp_path, capsys):
+    row = {"config": {"n_inputs": 1, "arch": [{"units": 1, "act": "sigmoid"}],
+                      "optim": {"type": "sgd", "lr": 0.1}, "epochs": 3},
+           "train_error": 0.1, "val_error": 0.2, "train_mean": 0.9, "val_mean": 0.8,
+           "train_std": None, "val_std": None,
+           "best_epoch_median": 3, "best_epochs": [3], "epochs_run": [3]}
+    summary = {"metric": "acc", "validation_mode": "holdout", "n_configs": 1,
+               "aggregate": {name: {"mean": 0.1, "variance": 0.0}
+                             for name in ("train_error", "val_error")},
+               "ranking": [row]}
+    (tmp_path / "summary.json").write_text(json.dumps(summary), encoding="utf-8")
+
+    main([str(tmp_path)])
+    report = capsys.readouterr().out
+    assert "MEDIA E VARIANZA DEGLI ERRORI TRA CONFIGURAZIONI" in report
+    assert "non dell'inizializzazione" in report
+    assert "Curve medie" not in report                  # no curves/ folder yet
+
+    (tmp_path / "curves").mkdir()
+    main([str(tmp_path)])
+    report = capsys.readouterr().out
+    assert "Curve medie" in report and "top_val.png" in report
+
+
 def test_report_distinguishes_completed_epochs_from_best_validation_epochs():
     config = {
         "n_inputs": 1,

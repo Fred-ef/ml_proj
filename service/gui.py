@@ -394,6 +394,8 @@ class SelectForm:
                 self.seed = ui.number("seed (vuoto = random)", value=0, precision=0).classes("w-44")
                 self.n_core = ui.number("n_core (-1 = tutti i core, 1 = sequenziale)",
                                         value=-1, precision=0).classes("w-64")
+                self.n_trials = ui.number("n_trials (init per configurazione)", value=3,
+                                          min=1, precision=0).classes("w-56")
             ui.separator()
             ui.label("Architettura — 1 valore = fissa, più valori = griglia da confrontare").classes("text-bold")
             self.arch = AxisList(ArchCandidate, add_label="+ architettura", default=_DEFAULT_ARCH)
@@ -446,6 +448,7 @@ class SelectForm:
         put("min_delta", [float(v) if v is not None else 0.0 for v in self.min_delta.values()])
 
         cfg: dict = {"n_core": int(self.n_core.value or -1),
+                     "n_trials": int(self.n_trials.value or 1),
                      "fixed": fixed, "grid": grid}
         if self.validation_mode.value == "kfold":
             cfg["k"] = int(self.k.value or 5)
@@ -461,6 +464,7 @@ class SelectForm:
         self.val_fraction.value = cfg.get("val_fraction", 0.2)
         self.seed.value = cfg.get("seed")
         self.n_core.value = cfg.get("n_core", -1)
+        self.n_trials.value = cfg.get("n_trials", 1)
         fixed, grid = cfg.get("fixed", {}), cfg.get("grid", {})
 
         def axis_values(key: str, default: Any) -> list:
@@ -538,9 +542,13 @@ async def open_run(task: str, run_id: str) -> None:
         render_summary(run["summary"])
         if png is not None:
             ui.image(f"data:image/png;base64,{base64.b64encode(png).decode()}").classes("w-full")
+            if "ranking" in run["summary"]:
+                ui.label("Curva media della configurazione migliore (banda = ± 1 dev. std tra le "
+                         "inizializzazioni). Le altre configurazioni sono in curves/ nella cartella "
+                         "del run.").classes("text-caption")
         else:
             ui.label("Nessuna curva di apprendimento per questo run "
-                     "(tipico di mode=select — una ranking non ha una singola curva).").classes("text-caption")
+                     "(i run select precedenti alle curve medie non la salvano).").classes("text-caption")
         with ui.expansion("Config completa").classes("w-full"):
             ui.code(json.dumps(run["config"], indent=2, ensure_ascii=False), language="json").classes("w-full")
 

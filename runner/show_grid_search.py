@@ -151,6 +151,51 @@ def _same_raw(left, right) -> bool:
     return json.dumps(left, sort_keys=True) == json.dumps(right, sort_keys=True)
 
 
+def _runs_label(row: dict, validation_mode: str) -> str:
+    """Name the runs behind the epoch lists ('' = a single holdout run)."""
+    trials = row.get("n_trials", 1) > 1
+    if validation_mode == "kfold":
+        return "nei run (trial × fold)" if trials else "nei fold"
+    return "nei trial" if trials else ""
+
+
+def _ranking_table(ranking: list[dict], limit: int | None) -> list[str]:
+    """One line per configuration: mean error +- std across initializations."""
+    if not ranking or "n_trials" not in ranking[0]:
+        return []  # summaries saved before multi-initialization support
+    rows = ranking if limit is None else ranking[:limit]
+
+    def cell(mean, std) -> str:
+        return _number(mean) if std is None else f"{_number(mean)} ± {_number(std)}"
+
+    n_trials = ranking[0]["n_trials"]
+    spread = (f"errore medio ± dev. std tra {n_trials} inizializzazioni dei pesi"
+              if n_trials > 1 else "una sola inizializzazione: nessuna dev. std")
+    lines = ["", f"CLASSIFICA SINTETICA ({spread})",
+             f"  {'#':>3}  {'Validation':<24} {'Training':<24} {'Epoca':>6}"]
+    for rank, row in enumerate(rows, start=1):
+        lines.append(f"  {rank:>3}  {cell(row['val_error'], row['val_init_std']):<24} "
+                     f"{cell(row['train_error'], row['train_init_std']):<24} "
+                     f"{row['best_epoch_median']:>6}")
+    return lines
+
+
+def _init_fields(row: dict, metric_label: str) -> list[tuple[str, str]]:
+    """Spread caused by the initial weights (absent from older summaries)."""
+    n_trials = row.get("n_trials", 1)
+    if n_trials < 2:
+        return []
+    fields = [("Inizializzazioni dei pesi (trial)", str(n_trials))]
+    for name, label in (("val", "validation"), ("train", "training")):
+        fields.append((f"Varianza errore {label} (tra inizializzazioni)",
+                       _number(row[f"{name}_init_var"])))
+        fields.append((f"Dev. std errore {label} (tra inizializzazioni)",
+                       _number(row[f"{name}_init_std"])))
+    fields.append((f"Validation per trial ({metric_label})",
+                   ", ".join(_number(value) for value in row["per_trial_val"])))
+    return fields
+
+
 def _epoch_fields(row: dict, validation_mode: str) -> list[tuple[str, str]]:
     """Distinguish training duration from the best validation epoch.
 
@@ -168,16 +213,17 @@ def _epoch_fields(row: dict, validation_mode: str) -> list[tuple[str, str]]:
         return fields
 
     epochs_run = row["epochs_run"]
-    if validation_mode == "kfold":
+    where = _runs_label(row, validation_mode)
+    if where:
         completed = ", ".join(str(epoch) for epoch in epochs_run)
-        fields = [("Epoche eseguite nei fold (fine training)", completed)]
+        fields = [(f"Epoche eseguite {where} (fine training)", completed)]
     else:
         fields = [("Epoche eseguite (fine training)", str(epochs_run[0]))]
 
     if row["config"].get("patience") is not None:
-        if validation_mode == "kfold":
+        if where:
             selected = ", ".join(str(epoch) for epoch in row["best_epochs"])
-            fields.append(("Epoche di migliore validation nei fold", selected))
+            fields.append((f"Epoche di migliore validation {where}", selected))
             fields.append(("Mediana epoche di migliore validation",
                            str(row["best_epoch_median"])))
         else:
@@ -201,7 +247,9 @@ def format_select_summary(summary: dict, run_config: dict | None = None,
         f"  {task}Validazione: {summary['validation_mode']}  |  "
         f"Configurazioni: {summary['n_configs']}  |  Metrica: {metric_label}",
         "",
-        "MEDIA E VARIANZA DEGLI ERRORI (tra configurazioni)",
+        "MEDIA E VARIANZA DEGLI ERRORI TRA CONFIGURAZIONI",
+        "  (ogni configurazione conta come un valore: misura quanto cambiano",
+        "  gli errori al variare degli iperparametri, non dell'inizializzazione)",
         f"  {'Insieme':<12} {'Media':>12} {'Varianza':>12}",
     ]
     for name, label in (("train_error", "Training"), ("val_error", "Validation")):
@@ -210,6 +258,7 @@ def format_select_summary(summary: dict, run_config: dict | None = None,
                      f"{_number(stats['variance']):>12}")
 
     ranking = summary["ranking"]
+    lines.extend(_ranking_table(ranking, limit))
     if any("epochs_run" not in row for row in ranking):
         lines.extend((
             "",
@@ -260,8 +309,9 @@ def format_select_summary(summary: dict, run_config: dict | None = None,
         for name, label in (("train_std", "training"), ("val_std", "validation")):
             std = row[name]
             if std is not None:
-                results.append((f"Deviazione standard {metric_label} {label}",
+                results.append((f"Deviazione standard {metric_label} {label} (tra fold)",
                                 _number(std)))
+        results.extend(_init_fields(row, metric_label))
         results.extend(_epoch_fields(row, summary["validation_mode"]))
         _append_fields(lines, results, "    ")
         lines.append("  Iperparametri specifici:")
@@ -302,6 +352,10 @@ def main(argv: list[str] | None = None) -> None:
             pass
     print(format_select_summary(summary, run_config=run_config,
                                 limit=None if args.all else 10))
+    curves_dir = path.parent / "curves"
+    if curves_dir.is_dir():
+        print(f"\nCurve medie (± dev. std tra inizializzazioni): {curves_dir}/rankNN.png"
+              f"\nConfronto delle validation migliori: {curves_dir / 'top_val.png'}")
 
 
 if __name__ == "__main__":

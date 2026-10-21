@@ -6,7 +6,7 @@
 python -m runner --config configs/samples/monk_mod_selection.json
 ```
 
-Prova 12 configurazioni per 10 epoche ciascuna. I campi necessari per costruire
+Prova 12 configurazioni per 10 epoche ciascuna, ognuna con 3 inizializzazioni dei pesi. I campi necessari per costruire
 la rete (`task`, architettura, attivazioni, inizializzazione, loss, epoche,
 ottimizzatore e intervallo del learning rate) devono avere un valore. Nei campi
 opzionali, `null` ha questi significati:
@@ -17,6 +17,8 @@ opzionali, `null` ha questi significati:
 | `config.val_fraction` | Usa il 20% con holdout; non si applica a k-fold | Una quota tra 0 e 1 quando `k` è `null` |
 | `config.n_core` | Esecuzione sequenziale | Un numero di processi, oppure `-1` per tutti i core |
 | `config.seed` | Genera un seed principale e lo salva nei risultati | Un intero non negativo per ripetere il run |
+| `config.n_trials` | Una sola inizializzazione dei pesi per configurazione | Un intero almeno 2: ogni configurazione viene addestrata più volte, con pesi iniziali diversi e lo stesso split, e il report mostra media, varianza e deviazione standard tra le inizializzazioni |
+| `config.plot_top` | Salva i grafici delle prime 5 configurazioni | Un intero: quante configurazioni disegnare (`0` = nessun grafico) |
 | `fixed.batch_size` | Full batch | `1` per campione, oppure un intero maggiore per mini batch |
 | `fixed.scale` | Nessuna standardizzazione | `true` (per MONK con output sigmoide lasciare disattivato) |
 | `fixed.reg.lam` | Nessuna regolarizzazione | Un numero non negativo; `type` può essere `l1` o `l2` |

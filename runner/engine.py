@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 
-from src.utils.experiment import new_run_dir, save_run, append_index, index_to_csv, flatten
-from src.utils.plotting import plot_learning_curve
+from src.utils.experiment import (new_run_dir, save_run, save_grid_curves, append_index,
+                                  index_to_csv, flatten)
+from src.utils.plotting import plot_learning_curve, plot_mean_curve, plot_val_comparison
 from src.utils.seeding import resolve_seed
 from .registry import get_task, MODES
 
@@ -39,6 +41,9 @@ def run_experiment(
     model_payload = {**payload, "n_inputs": profile.n_inputs, "seed": master_seed}
     summary, history = handler(model_payload, data, profile)
 
+    # Keep curves out of summary.json (and from the index)
+    curves = summary.pop("curves", None)
+
     run_dir = new_run_dir(results_root, task, tag, master_seed)
 
     # config.json keeps track of task/mode/tag: full provenance of the run
@@ -58,8 +63,36 @@ def run_experiment(
             title=f"{task} — {tag}",
         )
 
+    if curves is not None:
+        save_grid_curves(run_dir, curves)
+        # null or missing = plot the first 5 configurations; 0 = no plots.
+        top = model_payload.get("plot_top")
+        _plot_grid_curves(run_dir, task, profile.primary, summary["ranking"], curves,
+                          top=5 if top is None else top)
+
     _append_index(results_root, task, run_dir, model_payload, summary)
     return run_dir
+
+
+def _plot_grid_curves(run_dir: Path, task: str, metric: str, ranking: list[dict],
+                      curves: list[dict], top: int) -> None:
+    """Band plot for each of the first `top` configurations, plus a comparison."""
+    shown = min(top, len(ranking))
+    if shown == 0:
+        return
+    plots = run_dir / "curves"
+    plots.mkdir(exist_ok=True)
+    for rank, (row, entry) in enumerate(zip(ranking[:shown], curves[:shown]), start=1):
+        stopped = row["config"].get("patience") is not None
+        plot_mean_curve(entry, ylabel=metric, save_path=str(plots / f"rank{rank:02d}.png"),
+                        title=(f"{task} — configurazione {rank}/{len(ranking)} "
+                               f"(media su {row.get('n_trials', 1)} init)"),
+                        stop_epoch=row["best_epoch_median"] if stopped else None)
+    plot_val_comparison(curves[:shown], [f"configurazione {r}" for r in range(1, shown + 1)],
+                        ylabel=f"val {metric}", save_path=str(plots / "top_val.png"),
+                        title=f"{task} — validation media delle prime {shown}")
+    # The API/GUI shows learning_curve.png: for a grid, the best configuration's.
+    shutil.copyfile(plots / "rank01.png", run_dir / "learning_curve.png")
 
 
 def _append_index(results_root: Path, task: str, run_dir: Path, config: dict, summary: dict) -> None:

@@ -112,6 +112,18 @@ def test_select_payload_defaults_n_core_to_all_cores_and_accepts_an_override():
     assert overridden["n_core"] == 2
 
 
+def test_select_payload_carries_n_trials_and_plot_top():
+    default = JobRequest(task="monk1", mode="select", select={}).payload()
+    assert default["n_trials"] == 1 and default["plot_top"] == 5
+
+    chosen = JobRequest(task="monk1", mode="select",
+                        select={"n_trials": 3, "plot_top": 0}).payload()
+    assert chosen["n_trials"] == 3 and chosen["plot_top"] == 0
+    for invalid in ({"n_trials": 0}, {"plot_top": -1}):
+        with pytest.raises(Exception):
+            JobRequest(task="monk1", mode="select", select=invalid)
+
+
 def test_explicit_null_train_seed_survives_request_serialization():
     base = {"arch": [{"units": 1, "act": "sigmoid"}],
             "optim": {"type": "sgd", "lr": 0.1}, "epochs": 1}
@@ -272,6 +284,32 @@ def test_post_jobs_train_end_to_end_produces_a_readable_run():
 
         index = client.get("/runs?task=monk1")
         assert any(row["run_id"] == rec["run_id"] for row in index.json())
+    finally:
+        _cleanup_run("monk1", rec["run_id"])
+
+
+def test_post_jobs_select_with_trials_reports_spread_and_serves_the_curve_plot():
+    arch = [{"units": 2, "act": "tanh", "init": "uniform", "init_kwargs": {"scale": 0.3}},
+            {"units": 1, "act": "sigmoid", "init": "uniform", "init_kwargs": {"scale": 0.3}}]
+    r = client.post("/jobs", json={
+        "task": "monk1", "mode": "select", "tag": "pytest-service",
+        "select": {"val_fraction": 0.25, "seed": 0, "n_core": 1, "n_trials": 2, "plot_top": 1,
+                   "fixed": {"loss": "mse", "epochs": 4, "batch_size": None},
+                   "grid": {"arch": [arch], "optim": [{"type": "sgd", "lr": 0.1, "momentum": 0.9}],
+                            "reg": [None]}},
+    })
+    assert r.status_code == 202
+    rec = _wait(r.json()["job_id"])
+    try:
+        assert rec["status"] == "done"
+        summary = client.get(f"/runs/monk1/{rec['run_id']}").json()["summary"]
+        assert summary["n_trials"] == 2 and len(summary["ranking"][0]["per_trial_val"]) == 2
+        assert "curves" not in summary
+
+        # A select run now has a plot: the mean curve of the best configuration.
+        plot = client.get(f"/runs/monk1/{rec['run_id']}/plot")
+        assert plot.status_code == 200
+        assert plot.headers["content-type"] == "image/png"
     finally:
         _cleanup_run("monk1", rec["run_id"])
 
