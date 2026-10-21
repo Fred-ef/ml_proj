@@ -24,14 +24,17 @@ class TaskProfile:
     primary: str                    # metric used for scoring and plots
     goal: str                       # "max" or "min" for the primary metric
     allowed_modes: tuple[str, ...] = ("train", "select", "assess")
+    internal_test_split: tuple[float, int] | None = None
 
 
 def _profile(name: str, n_inputs: int, load: Callable, metric_name: str,
-            allowed_modes: tuple[str, ...] = ("train", "select", "assess")) -> TaskProfile:
+            allowed_modes: tuple[str, ...] = ("train", "select", "assess"),
+            internal_test_split: tuple[float, int] | None = None) -> TaskProfile:
     """Build a TaskProfile from the shared metrics registry."""
     fn, greater_is_better = METRICS[metric_name]
     return TaskProfile(name, n_inputs, load, {metric_name: fn}, metric_name,
-                       "max" if greater_is_better else "min", allowed_modes)
+                       "max" if greater_is_better else "min", allowed_modes,
+                       internal_test_split)
 
 
 def _load_monk(which: int):
@@ -60,7 +63,9 @@ TASKS: dict[str, TaskProfile] = {
     "monk2": _profile("monk2", 17, _load_monk(2), "acc"),
     "monk3": _profile("monk3", 17, _load_monk(3), "acc"),
     # CUP uses select then assess so the internal test is touched only once.
-    "cup": _profile("cup", 12, _load_cup, "mee", allowed_modes=("select", "assess")),
+    "cup": _profile("cup", 12, _load_cup, "mee",
+                    allowed_modes=("select", "assess"),
+                    internal_test_split=(_CUP_TEST_FRAC, _CUP_SPLIT_SEED)),
 }
 
 
@@ -74,12 +79,13 @@ def get_task(task: str) -> TaskProfile:
 
 
 def _train(payload: dict, data: tuple, profile: TaskProfile):
-    """Run multi-seed training and return the representative history."""
-    X_tr, y_tr, X_te, y_te = data
+    """Train without consulting the held-out test set."""
+    X_tr, y_tr, _X_te, _y_te = data
     score_fn = profile.metrics[profile.primary]
     summary, histories = run_trials(
-        payload, X_tr, y_tr, X_te, y_te,
+        payload, X_tr, y_tr, None, None,
         metrics=profile.metrics, score_fn=score_fn, score_name=profile.primary,
+        stage="train",
     )
     return summary, histories[summary["representative_trial"]]
 
@@ -111,6 +117,7 @@ def _select(payload: dict, data: tuple, profile: TaskProfile):
         "validation_mode": "kfold" if payload.get("k") is not None else "holdout",
         "n_configs": len(results),
         "aggregate": aggregate,
+        "seed_plan": search["seed_plan"],
         "ranking": [
             {"train_error": r["train_error"], "val_error": r["val_error"],
              "train_mean": r[train_mean_key], "train_std": r[train_std_key],
@@ -142,6 +149,7 @@ def _assess(payload: dict, data: tuple, profile: TaskProfile):
         f"per_trial_ts_{name}": summary[f"per_trial_{name}"],
         "n_trials": summary["n_trials"],
         "representative_trial": summary["representative_trial"],
+        "seed_plan": summary["seed_plan"],
     }
     if "val_mean" in payload:
         table[f"{name}_vl_mean"] = payload["val_mean"]

@@ -1,26 +1,57 @@
 {
   "task": "monk1",
   "mode": "select",
-  "tag": "grid-coarse",
+  "tag": "grid-level1",
   "config": {
-    "k": 3,
-    "seed": 0,
-    "n_core": -1,
+    "seed": 777777,
+    "n_core": 4,
+    "val_fraction": 0.2,
     "fixed": {
+      "init": "glorot",
       "loss": "mse",
-      "epochs": 80,
-      "batch_size": null
+      "epochs": 50,
+      "batch_size": 1,
+      "reg": {
+        "type": "l2",
+        "lam": 0.04
+      },
+      "momentum": null,
+      "patience": 10,
+      "min_delta": 0.0001
     },
-    "grid": {
-      "arch": [
-        [{"units": 3, "act": "tanh", "init": "uniform", "init_kwargs": {"scale": 0.3}}, {"units": 1, "act": "sigmoid", "init": "uniform", "init_kwargs": {"scale": 0.3}}],
-        [{"units": 4, "act": "tanh", "init": "uniform", "init_kwargs": {"scale": 0.3}}, {"units": 1, "act": "sigmoid", "init": "uniform", "init_kwargs": {"scale": 0.3}}]
+    "search": {
+      "hidden_layers": {
+        "scale": "log",
+        "start": 1,
+        "stop": 2
+      },
+      "hidden_units": [
+        {
+          "scale": "log",
+          "start": 1,
+          "stop": 8,
+          "factor": 2
+        },
+        {
+          "scale": "log",
+          "start": 1,
+          "stop": 4,
+          "factor": 2
+        }
       ],
-      "optim": [
-        {"type": "sgd", "lr": 0.05, "momentum": 0.9},
-        {"type": "sgd", "lr": 0.1, "momentum": 0.9}
-      ],
-      "reg": [null, {"type": "l2", "lam": 0.0001}]
+      "hidden_activation": "tanh",
+      "output": {
+        "units": 1,
+        "activation": "sigmoid"
+      },
+      "optimizer": {
+        "type": "sgd",
+        "lr": {
+          "scale": "log",
+          "start": 0.1,
+          "stop": 0.00001
+        }
+      }
     }
   }
 }

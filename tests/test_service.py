@@ -112,6 +112,16 @@ def test_select_payload_defaults_n_core_to_all_cores_and_accepts_an_override():
     assert overridden["n_core"] == 2
 
 
+def test_explicit_null_train_seed_survives_request_serialization():
+    base = {"arch": [{"units": 1, "act": "sigmoid"}],
+            "optim": {"type": "sgd", "lr": 0.1}, "epochs": 1}
+    default = JobRequest(task="monk1", mode="train", config=base).payload()
+    generated = JobRequest(task="monk1", mode="train",
+                           config={**base, "seed": None}).payload()
+    assert default["seed"] == 0
+    assert "seed" in generated and generated["seed"] is None
+
+
 def test_select_payload_accepts_holdout_or_kfold_but_not_both():
     holdout = JobRequest(task="monk1", mode="select",
                          select={"val_fraction": 0.3}).payload()
@@ -253,7 +263,8 @@ def test_post_jobs_train_end_to_end_produces_a_readable_run():
 
         run = client.get(f"/runs/monk1/{rec['run_id']}")
         assert run.status_code == 200
-        assert "test_acc_mean" in run.json()["summary"]
+        assert "train_acc_mean" in run.json()["summary"]
+        assert "test_acc_mean" not in run.json()["summary"]
 
         plot = client.get(f"/runs/monk1/{rec['run_id']}/plot")
         assert plot.status_code == 200

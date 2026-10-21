@@ -76,7 +76,11 @@ def test_run_experiment_train_produces_the_expected_artifacts(tmp_path):
         assert (run_dir / fname).exists()
 
     summary = json.loads((run_dir / "summary.json").read_text())
-    assert "test_acc_mean" in summary
+    assert "train_acc_mean" in summary
+    assert "test_acc_mean" not in summary
+    assert summary["seed_plan"]["root"] == 0
+    assert len(summary["seed_plan"]["trials"]) == 2
+    assert summary["seed_plan"]["trials"][0] != summary["seed_plan"]["trials"][1]
 
     index_rows = [json.loads(l) for l in (tmp_path / "monk1" / "index.jsonl").read_text().splitlines()]
     assert len(index_rows) == 1
@@ -120,6 +124,7 @@ def test_run_experiment_select_then_assess_chain(tmp_path):
 
     assert {"acc_tr_mean", "acc_ts_mean", "acc_vl_mean"} <= set(assess_summary)
     assert assess_summary["acc_vl_mean"] == chosen["val_mean"]
+    assert len(assess_summary["seed_plan"]["trials"]) == 2
 
 
 def test_run_experiment_select_with_holdout_reports_grid_error_stats(tmp_path):
@@ -156,6 +161,29 @@ def test_run_experiment_select_with_holdout_reports_grid_error_stats(tmp_path):
         assert summary["aggregate"][name]["variance"] == pytest.approx(np.var(values))
 
 
+def test_random_select_seed_is_saved_and_can_be_replayed(tmp_path):
+    payload = {
+        "seed": None, "val_fraction": 0.2, "n_core": 1,
+        "fixed": {"loss": "mse", "epochs": 2},
+        "grid": {
+            "arch": [[{"units": 2, "act": "tanh"},
+                      {"units": 1, "act": "sigmoid"}]],
+            "optim": [{"type": "sgd", "lr": 0.1}],
+        },
+    }
+    first = run_experiment("monk1", "select", payload, results_root=tmp_path)
+    saved = json.loads((first / "config.json").read_text())["config"]
+    summary = json.loads((first / "summary.json").read_text())
+    assert saved["seed_source"] == "generated"
+    assert saved["seed"] == summary["seed_plan"]["root"]
+    assert first.name.endswith(f"_s{saved['seed']}")
+
+    replay = run_experiment("monk1", "select", {**payload, "seed": saved["seed"]},
+                            results_root=tmp_path)
+    replay_summary = json.loads((replay / "summary.json").read_text())
+    assert replay_summary == summary
+
+
 # --- engine: the index stays a flat comparison table --------------------------
 
 def test_is_index_scalar_keeps_flat_values_and_drops_nested_structures():
@@ -185,9 +213,7 @@ def test_run_experiment_select_does_not_pollute_the_index_with_nested_fields(tmp
 
 
 # --- cup: registered with a restricted mode set (no plain `train`) -----------
-# _load_cup's "test" slot is the internal test set: `train` would feed it to
-# fit() as validation_data every epoch of every trial, which is exactly the
-# internal-test peeking select/assess exist to prevent (see registry.py).
+# CUP follows the select/assess workflow; plain train remains unavailable.
 
 def test_cup_profile_uses_mee_and_forbids_plain_train():
     profile = TASKS["cup"]
@@ -232,6 +258,8 @@ def test_run_experiment_select_then_assess_chain_on_real_cup_data(tmp_path):
     select_dir = run_experiment("cup", "select", _tiny_cup_select_payload(),
                                 tag="pytest-select", results_root=tmp_path)
     select_summary = json.loads((select_dir / "summary.json").read_text())
+    saved = json.loads((select_dir / "config.json").read_text())["config"]
+    assert saved["internal_test_split"] == {"fraction": 0.2, "seed": 0}
 
     assert select_summary["metric"] == "mee"
     chosen = select_summary["ranking"][0]

@@ -382,7 +382,15 @@ class SelectForm:
     def __init__(self) -> None:
         with ui.card().classes("w-full") as self.root:
             with ui.row().classes("gap-4"):
-                self.k = ui.number("k (fold)", value=5, min=2, precision=0).classes("w-28")
+                self.validation_mode = ui.select(["holdout", "kfold"],
+                                                 label="validazione", value="holdout").classes("w-32")
+                self.val_fraction = ui.number("quota validation (holdout)", value=0.2,
+                                              min=0.01, max=0.99, step=0.05).classes("w-48")
+                self.k = ui.number("k (solo k-fold)", value=5, min=2, precision=0).classes("w-32")
+                self.val_fraction.bind_visibility_from(
+                    self.validation_mode, "value", backward=lambda mode: mode == "holdout")
+                self.k.bind_visibility_from(
+                    self.validation_mode, "value", backward=lambda mode: mode == "kfold")
                 self.seed = ui.number("seed (vuoto = random)", value=0, precision=0).classes("w-44")
                 self.n_core = ui.number("n_core (-1 = tutti i core, 1 = sequenziale)",
                                         value=-1, precision=0).classes("w-64")
@@ -437,14 +445,20 @@ class SelectForm:
             omit_none_singleton=True)
         put("min_delta", [float(v) if v is not None else 0.0 for v in self.min_delta.values()])
 
-        cfg: dict = {"k": int(self.k.value or 5), "n_core": int(self.n_core.value or -1),
-                    "fixed": fixed, "grid": grid}
+        cfg: dict = {"n_core": int(self.n_core.value or -1),
+                     "fixed": fixed, "grid": grid}
+        if self.validation_mode.value == "kfold":
+            cfg["k"] = int(self.k.value or 5)
+        else:
+            cfg["val_fraction"] = float(self.val_fraction.value or 0.2)
         if self.seed.value not in (None, ""):
             cfg["seed"] = int(self.seed.value)
         return cfg
 
     def load(self, cfg: dict) -> None:
+        self.validation_mode.value = "kfold" if cfg.get("k") is not None else "holdout"
         self.k.value = cfg.get("k", 5)
+        self.val_fraction.value = cfg.get("val_fraction", 0.2)
         self.seed.value = cfg.get("seed")
         self.n_core.value = cfg.get("n_core", -1)
         fixed, grid = cfg.get("fixed", {}), cfg.get("grid", {})

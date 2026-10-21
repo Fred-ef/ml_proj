@@ -9,7 +9,9 @@
     "fixed": {
       "loss": "mse",
       "epochs": 100,
-      "batch_size": null
+      "batch_size": null,
+      "patience": 10,
+      "min_delta": 0.0001
     },
     "grid": {
       "arch": [

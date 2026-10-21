@@ -165,12 +165,12 @@ def test_report_shows_first_twenty_and_all_option_restores_full_list(tmp_path, c
 
     main([str(tmp_path)])
     report = capsys.readouterr().out
-    assert report.count("CONFIGURAZIONE ") == 20
-    assert "CONFIGURAZIONE 20/21" in report
-    assert "CONFIGURAZIONE 21/21" not in report
-    assert "prime 20 di 21" in report
-    assert "Risultati restanti: 1 configurazione in summary.json" in report
-    assert report.count("Learning rate") == 20  # last row still affects common settings
+    assert report.count("CONFIGURAZIONE ") == 10
+    assert "CONFIGURAZIONE 10/21" in report
+    assert "CONFIGURAZIONE 11/21" not in report
+    assert "prime 10 di 21" in report
+    assert "Risultati restanti: 11 configurazioni in summary.json" in report
+    assert report.count("Learning rate") == 10  # last row still affects common settings
 
     main([str(tmp_path), "--all"])
     full_report = capsys.readouterr().out

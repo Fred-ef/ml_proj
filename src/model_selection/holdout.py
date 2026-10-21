@@ -6,6 +6,7 @@ import numpy as np
 
 from ..data.preprocessing import StandardScaler
 from ..utils.metrics import METRICS
+from ..utils.seeding import derive_seed, resolve_seed
 from .early_stopping import EarlyStopping
 
 
@@ -62,7 +63,10 @@ def holdout_validate(build_model, config: dict, X, Y, train_idx, val_idx,
         else:
             report_name = metric
 
-    model = build_model({**config, "seed": seed})
+    master_seed = resolve_seed(seed)
+    model = build_model({**config,
+                         "seed": derive_seed(master_seed, "select_weights"),
+                         "shuffle_seed": derive_seed(master_seed, "select_shuffle")})
     patience = config.get("patience")
     early_stopping = (EarlyStopping(patience=patience,
                                     min_delta=config.get("min_delta") or 0.0)

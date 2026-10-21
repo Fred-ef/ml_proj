@@ -1,20 +1,20 @@
 {
   "task": "monk1",
   "mode": "assess",
-  "tag": "final",
+  "tag": "assess-lev2",
   "config": {
     "arch": [
-      {"units": 3, "act": "tanh", "init": "uniform", "init_kwargs": {"scale": 0.3}},
-      {"units": 1, "act": "sigmoid", "init": "uniform", "init_kwargs": {"scale": 0.3}}
+      {"units": 4, "act": "tanh", "init": "glorot"},
+      {"units": 1, "act": "sigmoid", "init": "glorot"}
     ],
     "loss": "mse",
-    "optim": {"type": "sgd", "lr": 0.05, "momentum": 0.9},
+    "optim": {"type": "sgd", "lr": 0.1, "momentum": 0.0},
     "reg": null,
-    "epochs": 300,
-    "batch_size": null,
-    "seed": 0,
+    "epochs": 36,
+    "batch_size": 1,
+    "seed": null,
     "n_trials": 5,
-    "val_mean": 0.19,
-    "val_std": 0.01
+    "val_mean": 1.0,
+    "val_std": null
   }
 }

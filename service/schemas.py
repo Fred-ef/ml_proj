@@ -69,11 +69,12 @@ class TrainConfig(BaseModel):
     reg: Optional[RegSpec] = None
     epochs: int = Field(gt=0)
     batch_size: Optional[int] = Field(default=None, gt=0)
-    seed: int = 0
+    seed: Optional[int] = Field(default=0, ge=0)
     n_trials: int = Field(5, gt=0)
     # early stopping
     patience: Optional[int] = Field(default=None, gt=0)
     min_delta: float = Field(0.0, ge=0)
+    val_fraction: Optional[float] = Field(default=None, gt=0, lt=1)
 
 
 class AssessConfig(TrainConfig):
@@ -88,7 +89,7 @@ class SelectConfig(BaseModel):
 
     k: Optional[int] = Field(default=None, ge=2)
     val_fraction: Optional[float] = Field(default=None, gt=0, lt=1)
-    seed: Optional[int] = None
+    seed: Optional[int] = Field(default=None, ge=0)
     n_core: Optional[int] = -1
     fixed: dict[str, Any] = Field(default_factory=dict)
     grid: dict[str, list[Any]] = Field(default_factory=dict)
@@ -118,4 +119,9 @@ class JobRequest(BaseModel):
     def payload(self) -> dict:
         """The plain dict runner.engine.run_experiment expects as `payload`."""
         model = {"train": self.config, "select": self.select, "assess": self.assess}[self.mode]
-        return model.model_dump(exclude_none=True)
+        payload = model.model_dump(exclude_none=True)
+        # An explicit null seed requests a generated, recorded seed. Preserve
+        # it while omitting unrelated optional null fields.
+        if "seed" in model.model_fields_set and model.seed is None:
+            payload["seed"] = None
+        return payload

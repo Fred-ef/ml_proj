@@ -115,6 +115,40 @@ def test_compact_search_expands_to_200_unique_buildable_configurations():
         assert len(build_model(config).layers) == len(config["arch"])
 
 
+def test_compact_search_expands_regularization_strengths():
+    search = _search()
+    search["hidden_layers"] = {"scale": "int", "start": 1, "stop": 1}
+    search["hidden_units"] = [{"scale": "int", "start": 2, "stop": 2}]
+    search["optimizer"]["lr"] = {"scale": "log", "start": 0.1, "stop": 0.1}
+    search["reg"] = {"type": "l2", "lam": {
+        "scale": "log", "start": 0.1, "stop": 0.0001,
+    }}
+
+    configs = list(iter_search_configs(_fixed(), search))
+
+    assert [config["reg"]["lam"] for config in configs] == pytest.approx(
+        [0.1, 0.01, 0.001, 0.0001])
+    assert all(build_model(config).regularizer.lam == config["reg"]["lam"]
+               for config in configs)
+
+
+def test_compact_search_rejects_regularization_inside_optimizer():
+    search = _search()
+    search["optimizer"]["reg"] = {"type": "l2", "lam": 0.01}
+    with pytest.raises(ValueError, match="reg belongs in search"):
+        list(iter_search_configs(_fixed(), search))
+
+
+def test_compact_search_rejects_conflicting_fixed_regularization():
+    search = _search()
+    search["reg"] = {"type": "l2", "lam": {
+        "scale": "log", "start": 0.1, "stop": 0.01,
+    }}
+    fixed = {**_fixed(), "reg": {"type": "l1", "lam": 0.01}}
+    with pytest.raises(ValueError, match="both fixed and search"):
+        list(iter_search_configs(fixed, search))
+
+
 @pytest.mark.parametrize("spec", [
     {"scale": "int", "start": "1", "stop": 3},
     {"scale": "int", "start": 1.5, "stop": 3},

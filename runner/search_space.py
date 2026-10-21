@@ -64,10 +64,12 @@ def iter_search_configs(fixed: dict, search: dict) -> Iterator[dict]:
         raise ValueError("fixed and search must be objects")
     expected = {"hidden_layers", "hidden_units", "hidden_activation", "output",
                 "optimizer"}
-    if set(search) != expected:
-        raise ValueError(f"search must contain exactly {sorted(expected)}")
+    if set(search) - {"reg"} != expected:
+        raise ValueError(f"search must contain {sorted(expected)} and optional reg")
     if "arch" in fixed or "optim" in fixed:
         raise ValueError("arch and optim belong in search, not fixed")
+    if "reg" in search and fixed.get("reg") is not None:
+        raise ValueError("reg cannot be set in both fixed and search")
 
     depths = list(iter_values(search["hidden_layers"]))
     if any(not isinstance(depth, int) or depth < 1 for depth in depths):
@@ -94,6 +96,8 @@ def iter_search_configs(fixed: dict, search: dict) -> Iterator[dict]:
     if (not isinstance(optimizer, dict) or "lr" not in optimizer
             or not isinstance(optimizer.get("type"), str) or not optimizer["type"]):
         raise ValueError("optimizer needs type and a learning-rate range")
+    if "reg" in optimizer:
+        raise ValueError("reg belongs in search, not search.optimizer")
     rates = list(iter_values(optimizer["lr"]))
     if any(rate <= 0 for rate in rates):
         raise ValueError("learning rates must be positive")
@@ -104,11 +108,22 @@ def iter_search_configs(fixed: dict, search: dict) -> Iterator[dict]:
     reg = resolved_fixed.get("reg")
     if isinstance(reg, dict) and "lam" in reg and reg["lam"] is None:
         resolved_fixed["reg"] = None
+    regularizations = [resolved_fixed.get("reg")]
+    if "reg" in search:
+        reg_spec = search["reg"]
+        if (not isinstance(reg_spec, dict) or set(reg_spec) != {"type", "lam"}
+                or reg_spec["type"] not in ("l1", "l2")):
+            raise ValueError("search.reg requires type (l1/l2) and a lam range")
+        regularizations = [{"type": reg_spec["type"], "lam": lam}
+                           for lam in iter_values(reg_spec["lam"])]
+        if any(reg["lam"] < 0 for reg in regularizations):
+            raise ValueError("regularization strengths must be non-negative")
 
     for depth in depths:
         for units in product(*widths[:depth]):
             for rate in rates:
-                layers = [{"units": unit, "act": hidden_act} for unit in units]
-                layers.append({"units": output["units"], "act": output["activation"]})
-                yield {**resolved_fixed, "arch": layers,
-                       "optim": {**optim_base, "lr": rate}}
+                for regularization in regularizations:
+                    layers = [{"units": unit, "act": hidden_act} for unit in units]
+                    layers.append({"units": output["units"], "act": output["activation"]})
+                    yield {**resolved_fixed, "arch": layers, "reg": regularization,
+                           "optim": {**optim_base, "lr": rate}}

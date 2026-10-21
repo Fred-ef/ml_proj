@@ -464,7 +464,8 @@ def test_run_trials_summary_uses_the_dynamic_score_name():
     summary, histories = run_trials(cfg, X, Y, Xte, Yte, metrics={}, score_fn=mee, score_name="mee")
 
     assert set(summary) == {"test_mee_mean", "test_mee_std", "train_mee_mean",
-                            "train_mee_std", "per_trial_mee", "n_trials", "representative_trial"}
+                            "train_mee_std", "per_trial_mee", "n_trials",
+                            "representative_trial", "seed_plan"}
     assert len(histories) == 3
     assert len(summary["per_trial_mee"]) == 3
     assert 0 <= summary["representative_trial"] < 3
@@ -481,13 +482,13 @@ def test_run_trials_representative_trial_is_the_median_by_score():
     assert scores[rep] == sorted(scores)[len(scores) // 2]
 
 
-def test_run_trials_early_stopping_is_opt_in(monkeypatch):
-    """Regression test: no 'patience' key => no early stopping"""
-    seen_early_stopping = []
+def test_run_trials_never_uses_test_set_during_fit(monkeypatch):
+    """Assessment scores the test set only after fixed-epoch training."""
+    fit_calls = []
     original_fit = Network.fit
 
     def spy_fit(self, *args, **kwargs):
-        seen_early_stopping.append(kwargs.get("early_stopping"))
+        fit_calls.append((kwargs.get("early_stopping"), kwargs.get("validation_data")))
         return original_fit(self, *args, **kwargs)
 
     monkeypatch.setattr(Network, "fit", spy_fit)
@@ -496,9 +497,42 @@ def test_run_trials_early_stopping_is_opt_in(monkeypatch):
 
     run_trials(regression_config(epochs=5, n_trials=2), X, Y, Xte, Yte,
               metrics={}, score_fn=mee, score_name="mee")
-    assert all(es is None for es in seen_early_stopping), "no 'patience' in config => no early stopping"
+    assert all(es is None and validation is None for es, validation in fit_calls)
 
-    seen_early_stopping.clear()
-    run_trials(regression_config(epochs=5, n_trials=2, patience=3), X, Y, Xte, Yte,
-              metrics={}, score_fn=mee, score_name="mee")
-    assert all(es is not None for es in seen_early_stopping), "'patience' in config => early stopping wired"
+    fit_calls.clear()
+    _, histories = run_trials(regression_config(epochs=5, n_trials=2, patience=3),
+                              X, Y, Xte, Yte, metrics={}, score_fn=mee,
+                              score_name="mee")
+    assert all(es is None and validation is None for es, validation in fit_calls)
+    assert all(len(history["loss"]) == 5 for history in histories)
+
+
+def test_train_trials_use_internal_validation_and_never_touch_test(monkeypatch):
+    X, Y = regression_data()
+    fit_calls = []
+    original_fit = Network.fit
+
+    def spy_fit(self, x_train, y_train, **kwargs):
+        fit_calls.append((x_train.copy(), kwargs["validation_data"],
+                          kwargs["early_stopping"]))
+        return original_fit(self, x_train, y_train, **kwargs)
+
+    monkeypatch.setattr(Network, "fit", spy_fit)
+    cfg = regression_config(epochs=5, n_trials=2, patience=3)
+    summary, _ = run_trials(cfg, X, Y, None, None, metrics={},
+                            score_fn=mee, score_name="mee", stage="train")
+    assert "val_mee_mean" in summary and "test_mee_mean" not in summary
+    assert "split" in summary["seed_plan"]
+    assert all(es is not None and validation is not None
+               for _, validation, es in fit_calls)
+    assert all(len(x_train) + len(validation[0]) == len(X)
+               for x_train, validation, _ in fit_calls)
+    assert np.array_equal(fit_calls[0][1][0], fit_calls[1][1][0])
+
+    fit_calls.clear()
+    summary, _ = run_trials(regression_config(epochs=5, n_trials=2), X, Y,
+                            None, None, metrics={}, score_fn=mee,
+                            score_name="mee", stage="train")
+    assert "val_mee_mean" not in summary and "test_mee_mean" not in summary
+    assert all(validation is None and es is None and len(x_train) == len(X)
+               for x_train, validation, es in fit_calls)

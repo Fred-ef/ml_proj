@@ -301,7 +301,7 @@ def main(argv: list[str] | None = None) -> None:
         except (OSError, json.JSONDecodeError):
             pass
     print(format_select_summary(summary, run_config=run_config,
-                                limit=None if args.all else 20))
+                                limit=None if args.all else 10))
 
 
 if __name__ == "__main__":

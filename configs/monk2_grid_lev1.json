@@ -1,9 +1,9 @@
 {
-  "task": "monk1",
+  "task": "monk2",
   "mode": "select",
   "tag": "grid-sample",
   "config": {
-    "seed": 777312532512,
+    "seed": null,
     "n_core": 4,
     "k": null,
     "val_fraction": 0.2,
@@ -11,13 +11,9 @@
       "init": "glorot",
       "init_kwargs": null,
       "loss": "mse",
-      "epochs": 50,
-      "batch_size": 1,
+      "epochs": 1500,
+      "batch_size": 16,
       "scale": null,
-      "reg": {
-        "type": "l2",
-        "lam": null
-      },
       "patience": 10,
       "min_delta": 0.0001
     },
@@ -46,13 +42,20 @@
         "units": 1,
         "activation": "sigmoid"
       },
+      "reg": {
+        "type": "l2",
+        "lam": {
+          "scale": "log",
+          "start": 0.1,
+          "stop": 0.0001
+        }
+      },
       "optimizer": {
         "type": "sgd",
         "lr": {
           "scale": "log",
-          "start": 0.1,
-          "stop": 0.01,
-          "factor": 10
+          "start": 0.9,
+          "stop": 0.01
         },
         "momentum": null,
         "nesterov": null,

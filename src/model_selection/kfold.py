@@ -9,6 +9,7 @@ from __future__ import annotations
 import numpy as np
 
 from ..utils.metrics import METRICS
+from ..utils.seeding import derive_seed, resolve_seed
 from .early_stopping import EarlyStopping
 from ..data.preprocessing import StandardScaler
 
@@ -49,7 +50,9 @@ def cross_validate(build_model, config: dict, X, Y, k: int = 5, seed: int | None
     best_epochs = []
     epochs_run = []
 
-    for fold_idx, (train_idx, val_idx) in enumerate(kfold_indices(len(X), k, seed)):
+    master_seed = resolve_seed(seed)
+    split_seed = derive_seed(master_seed, "select_split")
+    for fold_idx, (train_idx, val_idx) in enumerate(kfold_indices(len(X), k, split_seed)):
 
         X_train, Y_train = X[train_idx], Y[train_idx]
         X_val, Y_val = X[val_idx], Y[val_idx]
@@ -63,9 +66,10 @@ def cross_validate(build_model, config: dict, X, Y, k: int = 5, seed: int | None
             Y_train = scaler_Y.fit_transform(Y_train)
             Y_val = scaler_Y.transform(Y_val)
 
-        # Give each fold its own reproducible model seed.
-        fold_seed = None if seed is None else seed + fold_idx
-        model = build_model({**config, "seed": fold_seed})
+        # All configurations share a fold's initialization and batch order.
+        model = build_model({**config,
+                             "seed": derive_seed(master_seed, "select_weights", fold_idx),
+                             "shuffle_seed": derive_seed(master_seed, "select_shuffle", fold_idx)})
 
         epochs = config.get('epochs', 100)
         batch_size = config.get('batch_size', None)

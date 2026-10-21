@@ -16,7 +16,7 @@ opzionali, `null` ha questi significati:
 | `config.k` | Usa holdout | Un intero almeno 2; impostare `val_fraction` a `null` |
 | `config.val_fraction` | Usa il 20% con holdout; non si applica a k-fold | Una quota tra 0 e 1 quando `k` è `null` |
 | `config.n_core` | Esecuzione sequenziale | Un numero di processi, oppure `-1` per tutti i core |
-| `config.seed` | Suddivisione e pesi non riproducibili | Un intero |
+| `config.seed` | Genera un seed principale e lo salva nei risultati | Un intero non negativo per ripetere il run |
 | `fixed.batch_size` | Full batch | `1` per campione, oppure un intero maggiore per mini batch |
 | `fixed.scale` | Nessuna standardizzazione | `true` (per MONK con output sigmoide lasciare disattivato) |
 | `fixed.reg.lam` | Nessuna regolarizzazione | Un numero non negativo; `type` può essere `l1` o `l2` |
@@ -33,3 +33,7 @@ Le stringhe disponibili sono `uniform`, `glorot`, `he` per `init`;
 `quickprop` per l'ottimizzatore. La loss disponibile è `mse`. QuickProp richiede
 full batch (`batch_size: null`). Negli intervalli, `scale: "int"` include tutti
 gli interi tra `start` e `stop`; `scale: "log"` usa il moltiplicatore `factor`.
+Per cercare il coefficiente di regolarizzazione, aggiungere `search.reg` accanto
+a `search.optimizer`, per esempio `{"type": "l2", "lam": {"scale": "log",
+"start": 0.1, "stop": 0.0001}}`. Produce i valori 0.1, 0.01, 0.001 e
+0.0001; non impostare contemporaneamente una regolarizzazione in `fixed.reg`.

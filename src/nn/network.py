@@ -15,6 +15,7 @@ from .losses import Loss
 from .optimizers import Optimizer
 from .regularizers import Regularizer
 from ..model_selection.early_stopping import EarlyStopping
+from ..utils.seeding import derive_seed, resolve_seed
 
 
 class Network:
@@ -25,12 +26,19 @@ class Network:
         optimizer: Optimizer,
         regularizer: Regularizer | None = None,
         seed: int | None = None,
+        shuffle_seed: int | None = None,
     ) -> None:
         self.layers = layers
         self.loss = loss
         self.optimizer = optimizer
         self.regularizer = regularizer
-        self.rng = np.random.default_rng(seed)
+        self.seed = resolve_seed(seed)
+        self.rng = np.random.default_rng(self.seed)
+        # A separate stream keeps batch order stable when the architecture
+        # changes how many random values weight initialization consumes.
+        self.shuffle_seed = (derive_seed(self.seed, "network_shuffle")
+                             if shuffle_seed is None else resolve_seed(shuffle_seed))
+        self.shuffle_rng = np.random.default_rng(self.shuffle_seed)
         self.history: dict[str, list[float]] = {}
 
         for layer in self.layers:
@@ -73,7 +81,7 @@ class Network:
             self.optimizer.lr.steps_per_epoch = steps_per_epoch
 
         for epoch in range(epochs):
-            perm = self.rng.permutation(N)
+            perm = self.shuffle_rng.permutation(N)
             for start in range (0, N, m):
                 idx = perm[start:start+m]
                 x_batch = x_train[idx]

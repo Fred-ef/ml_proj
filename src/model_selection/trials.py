@@ -15,71 +15,110 @@ import numpy as np
 
 from .build import build_model
 from .early_stopping import EarlyStopping
+from .holdout import holdout_indices
 from ..data.preprocessing import StandardScaler
+from ..utils.seeding import SEED_SCHEME, derive_seed, resolve_seed
 
 
 def run_trials(config: dict, X_tr, y_tr, X_te, y_te, metrics: dict,
-               score_fn, score_name: str) -> tuple[dict, list[dict]]:
-    """Runs config on n_trials different seeds; returns (summary, histories)."""
+               score_fn, score_name: str, *, stage: str = "assess") -> tuple[dict, list[dict]]:
+    """Run repeated training. Only assess scores on the held-out test set."""
+    if stage not in ("train", "assess"):
+        raise ValueError(f"unknown trial stage: {stage!r}")
     n_trials  = config.get("n_trials", 5)
-    base_seed = config.get("seed", 0)
+    master_seed = resolve_seed(config.get("seed", 0))
+    patience = config.get("patience") if stage == "train" else None
+    use_validation = stage == "train" and (patience is not None or
+                                             config.get("val_fraction") is not None)
+    split_seed = derive_seed(master_seed, "train_split") if use_validation else None
+    val_fraction = config.get("val_fraction")
+    train_idx, val_idx = (holdout_indices(len(X_tr), 0.2 if val_fraction is None else val_fraction,
+                                         seed=split_seed) if use_validation else
+                          (None, None))
+    seed_plan = {"scheme": SEED_SCHEME, "root": master_seed, "trials": [
+        {"weights": derive_seed(master_seed, "trial_weights", i),
+         "shuffle": derive_seed(master_seed, "trial_shuffle", i)}
+        for i in range(n_trials)
+    ]}
+    if use_validation:
+        seed_plan["split"] = split_seed
 
-    test_score, train_score, histories = [], [], []
+    eval_score, train_score, histories = [], [], []
     for i in range(n_trials):
-        cfg_i = {**config, "seed": base_seed + i}
+        cfg_i = {**config, "seed": seed_plan["trials"][i]["weights"],
+                 "shuffle_seed": seed_plan["trials"][i]["shuffle"]}
         
         # Facciamo una copia locale dei dati in modo che i fold/trial siano indipendenti
-        X_tr_i, y_tr_i = np.copy(X_tr), np.copy(y_tr)
-        X_te_i, y_te_i = np.copy(X_te), np.copy(y_te)
+        X_tr_i = np.copy(X_tr if train_idx is None else X_tr[train_idx])
+        y_tr_i = np.copy(y_tr if train_idx is None else y_tr[train_idx])
+        X_ev_i = (np.copy(X_te) if stage == "assess" else
+                  np.copy(X_tr[val_idx]) if use_validation else None)
+        y_ev_i = (np.copy(y_te) if stage == "assess" else
+                  np.copy(y_tr[val_idx]) if use_validation else None)
         scaler_Y = None
         
         if config.get("scale", False):
             scaler_X = StandardScaler()
             X_tr_i = scaler_X.fit_transform(X_tr_i)
-            X_te_i = scaler_X.transform(X_te_i)
+            if X_ev_i is not None:
+                X_ev_i = scaler_X.transform(X_ev_i)
             
             scaler_Y = StandardScaler()
             y_tr_i = scaler_Y.fit_transform(y_tr_i)
-            y_te_i = scaler_Y.transform(y_te_i)
+            if y_ev_i is not None:
+                y_ev_i = scaler_Y.transform(y_ev_i)
 
         model = build_model(cfg_i)
 
-        # Opt-in, like cross_validate: no "patience" in config => no early
-        # stopping (train for the full epoch count requested).
-        patience = cfg_i.get("patience", None)
+        # Early stopping may inspect only a validation holdout from training.
+        # Assessment always runs for the fixed number of epochs.
         es = (EarlyStopping(patience=patience, min_delta=cfg_i.get("min_delta", 0.0))
               if patience is not None else None)
 
         history = model.fit(X_tr_i, y_tr_i, epochs=cfg_i["epochs"],
                             batch_size=cfg_i.get("batch_size"),
-                            validation_data=(X_te_i, y_te_i), metrics=metrics,
+                            validation_data=((X_ev_i, y_ev_i) if use_validation else None),
+                            metrics=metrics,
                             early_stopping=es)
 
-        pred_tr, pred_te = model.predict(X_tr_i), model.predict(X_te_i)
+        pred_tr = model.predict(X_tr_i)
+        pred_ev = model.predict(X_ev_i) if X_ev_i is not None else None
         
         # Se abbiamo scalato le Y, per calcolare il vero score_fn (MEE) dobbiamo 
         # invertire la trasformazione per tornare alla scala originale.
         if scaler_Y is not None:
             pred_tr = scaler_Y.inverse_transform(pred_tr)
-            pred_te = scaler_Y.inverse_transform(pred_te)
+            if pred_ev is not None:
+                pred_ev = scaler_Y.inverse_transform(pred_ev)
             y_tr_curr = scaler_Y.inverse_transform(y_tr_i)
-            y_te_curr = scaler_Y.inverse_transform(y_te_i)
+            y_ev_curr = scaler_Y.inverse_transform(y_ev_i) if y_ev_i is not None else None
         else:
-            y_tr_curr, y_te_curr = y_tr_i, y_te_i
+            y_tr_curr, y_ev_curr = y_tr_i, y_ev_i
 
-        s_tr, s_te = score_fn(pred_tr, y_tr_curr), score_fn(pred_te, y_te_curr)
-        train_score.append(s_tr); test_score.append(s_te); histories.append(history)
+        train_score.append(score_fn(pred_tr, y_tr_curr))
+        if pred_ev is not None:
+            eval_score.append(score_fn(pred_ev, y_ev_curr))
+        histories.append(history)
 
-    test_score, train_score = np.array(test_score), np.array(train_score)
-    rep = int(np.argsort(test_score)[len(test_score) // 2])
+    eval_score, train_score = np.array(eval_score), np.array(train_score)
+    representative_scores = eval_score if len(eval_score) else train_score
+    rep = int(np.argsort(representative_scores)[len(representative_scores) // 2])
 
     summary = {
-        f"test_{score_name}_mean":  float(np.mean(test_score)),
-        f"test_{score_name}_std":   float(np.std(test_score)),
         f"train_{score_name}_mean": float(np.mean(train_score)),
         f"train_{score_name}_std":  float(np.std(train_score)),
-        f"per_trial_{score_name}": [float(a) for a in test_score],
         "n_trials": n_trials,
         "representative_trial": rep,
+        "seed_plan": seed_plan,
     }
+    if len(eval_score):
+        label = "test" if stage == "assess" else "val"
+        summary.update({
+            f"{label}_{score_name}_mean": float(np.mean(eval_score)),
+            f"{label}_{score_name}_std": float(np.std(eval_score)),
+            (f"per_trial_{score_name}" if stage == "assess" else
+             f"per_trial_val_{score_name}"): [float(a) for a in eval_score],
+        })
+    else:
+        summary[f"per_trial_train_{score_name}"] = [float(a) for a in train_score]
     return summary, histories

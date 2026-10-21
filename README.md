@@ -68,9 +68,37 @@ To reopen a saved report without running training again:
 python -m runner.show_grid_search results/monk1/RUN_ID
 ```
 
-The reader shows the first 20 ranked configurations by default. To show every
+The reader shows the first 10 ranked configurations by default. To show every
 configuration saved in `summary.json`, add `--all`. It also accepts the path to
 `summary.json` directly.
+
+`train` runs repeated training without using the test set. With `patience`, it
+creates one reproducible holdout from the training data (20% by default, or
+`val_fraction` if set) and uses that validation loss for early stopping. Without
+`patience` or `val_fraction`, it trains on all available training examples and
+reports only training scores. `select` uses its own holdout or k-fold validation
+to compare configurations. `assess` trains for the fixed `epochs` and evaluates
+the held-out test set only after training; any carried-over `patience` setting
+has no effect in this mode.
+
+### Experiment seeds
+
+`config.seed` is the master seed. The runner derives separate, reproducible
+streams for the validation split, weight initialization, and per-epoch sample
+order. All grid configurations use the same split and, within each fold, the
+same weight and shuffle seeds. Architectures can draw different numbers of
+weights without changing the shuffle stream. Train/assess trials get distinct
+weight and shuffle seeds. With early stopping, train trials also share an
+internal validation split derived from the master seed.
+
+An explicit non-negative integer replays the same random choices. In `select`,
+an omitted or `null` seed generates a master seed once; `train` and `assess`
+default to `0` when omitted, while explicit `null` generates one. The effective
+master seed is saved in `config.json`, and `summary.json` records the derived
+seeds in `seed_plan`. The CUP internal test split remains fixed at seed `0`
+independently of the experiment seed. The seed derivation scheme is versioned:
+old results made before `seedsequence-v1` will not have the same random choices
+for a given master seed.
 
 For an executable example with all optional settings visible and `null` values
 for disabled features, see `configs/samples/monk_mod_selection.json` and

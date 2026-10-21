@@ -6,6 +6,7 @@ from pathlib import Path
 
 from src.utils.experiment import new_run_dir, save_run, append_index, index_to_csv, flatten
 from src.utils.plotting import plot_learning_curve
+from src.utils.seeding import resolve_seed
 from .registry import get_task, MODES
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -29,17 +30,25 @@ def run_experiment(
             f"mode={mode!r} is not allowed for task={task!r} "
             f"(allowed: {list(profile.allowed_modes)})"
         )
+    requested_seed = payload.get("seed", None if mode == "select" else 0)
+    master_seed = resolve_seed(requested_seed)
+    seed_source = "generated" if requested_seed is None else "fixed"
     handler = MODES[mode]
     data = profile.load(ROOT)
 
-    model_payload = {**payload, "n_inputs": profile.n_inputs}
+    model_payload = {**payload, "n_inputs": profile.n_inputs, "seed": master_seed}
     summary, history = handler(model_payload, data, profile)
 
-    seed = model_payload.get("seed", 0)
-    run_dir = new_run_dir(results_root, task, tag, seed)
+    run_dir = new_run_dir(results_root, task, tag, master_seed)
 
     # config.json keeps track of task/mode/tag: full provenance of the run
-    saved_config = {"task": task, "mode": mode, "tag": tag, **model_payload}
+    saved_config = {"task": task, "mode": mode, "tag": tag,
+                    **model_payload, "seed_source": seed_source}
+    if profile.internal_test_split is not None:
+        fraction, split_seed = profile.internal_test_split
+        saved_config["internal_test_split"] = {
+            "fraction": fraction, "seed": split_seed,
+        }
     save_run(run_dir, saved_config, summary, history=history)
 
     if history is not None:

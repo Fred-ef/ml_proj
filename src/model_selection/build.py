@@ -60,4 +60,5 @@ def build_model(config: dict) -> Network:
         reg_cfg = dict(config["reg"]); reg_type = reg_cfg.pop("type")
         reg = _REG[reg_type](**reg_cfg)
 
-    return Network(layers, loss=loss, optimizer=optimizer, regularizer=reg, seed=config.get("seed"))
+    return Network(layers, loss=loss, optimizer=optimizer, regularizer=reg,
+                   seed=config.get("seed"), shuffle_seed=config.get("shuffle_seed"))

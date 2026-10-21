@@ -10,6 +10,7 @@ import numpy as np
 
 from ..utils.metrics import METRICS
 from ..utils.parallel import parallel_map, resolve_workers
+from ..utils.seeding import SEED_SCHEME, derive_seed, resolve_seed
 from .holdout import holdout_indices, holdout_validate
 from .kfold import cross_validate
 
@@ -21,7 +22,7 @@ def iter_grid(param_grid: dict[str, Iterable]):
         yield dict(zip(keys, combo))
 
 
-def _evaluate_config(build_model, config, X, Y, k, seed, metric, split):
+def _evaluate_config(position, build_model, config, X, Y, k, seed, metric, split):
     """Evaluate one configuration using the selected validation strategy.
 
     Defined at module level (not a closure/lambda) so it is picklable and can be
@@ -43,7 +44,7 @@ def _evaluate_config(build_model, config, X, Y, k, seed, metric, split):
     # reported errors have the same lower-is-better direction.
     train_error = 1.0 - train_score if metric == "acc" else train_score
     val_error = 1.0 - val_score if metric == "acc" else val_score
-    return {"config": config, **scores,
+    return {"config": config, "_grid_index": position, **scores,
             "train_error": float(train_error), "val_error": float(val_error)}
 
 
@@ -73,11 +74,16 @@ def grid_search(param_grid: Mapping[str, Iterable] | Iterable[dict], build_model
         raise ValueError("param_grid contains no configurations")
     if any(not isinstance(config, dict) for config in configs):
         raise ValueError("grid search configurations must be dictionaries")
+    if any("seed" in config or "shuffle_seed" in config for config in configs):
+        raise ValueError("seed belongs to the grid search, not fixed/grid configurations")
+
+    master_seed = resolve_seed(seed)
+    split_seed = derive_seed(master_seed, "select_split")
 
     split = None
     if k is None:
         split = holdout_indices(len(X), 0.2 if val_fraction is None else val_fraction,
-                                seed=seed)
+                                seed=split_seed)
     elif k > len(X):
         raise ValueError("k cannot exceed the number of samples")
 
@@ -86,7 +92,8 @@ def grid_search(param_grid: Mapping[str, Iterable] | Iterable[dict], build_model
     validation = f"k-fold ({k} fold)" if k is not None else "holdout"
     print(f"Grid search: {total} configurazioni | {validation} | {how}")
 
-    tasks = [(build_model, cfg, X, Y, k, seed, metric, split) for cfg in configs]
+    tasks = [(position, build_model, cfg, X, Y, k, master_seed, metric, split)
+             for position, cfg in enumerate(configs)]
     results = parallel_map(_evaluate_config, tasks, n_core)
 
     aggregate = {}
@@ -99,5 +106,13 @@ def grid_search(param_grid: Mapping[str, Iterable] | Iterable[dict], build_model
             "variance": float(np.var(values, ddof=0)),
         }
 
-    results.sort(key=lambda result: result["val_error"])
-    return {"ranking": results, "aggregate": aggregate}
+    results.sort(key=lambda result: (result["val_error"], result["_grid_index"]))
+    for result in results:
+        del result["_grid_index"]
+    seed_plan = {"scheme": SEED_SCHEME, "root": master_seed,
+                 "split": split_seed, "models": [
+        {"weights": derive_seed(master_seed, "select_weights", i),
+         "shuffle": derive_seed(master_seed, "select_shuffle", i)}
+        for i in range(1 if k is None else k)
+    ]}
+    return {"ranking": results, "aggregate": aggregate, "seed_plan": seed_plan}
