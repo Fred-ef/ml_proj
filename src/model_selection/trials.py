@@ -16,7 +16,8 @@ import numpy as np
 from .build import build_model
 from .early_stopping import EarlyStopping
 from .holdout import holdout_indices
-from ..data.preprocessing import StandardScaler
+from .scaling import original_target_metric, prepare_split
+from ..utils.metrics import METRICS
 from ..utils.seeding import SEED_SCHEME, derive_seed, resolve_seed
 
 
@@ -44,6 +45,7 @@ def run_trials(config: dict, X_tr, y_tr, X_te, y_te, metrics: dict,
         seed_plan["split"] = split_seed
 
     eval_score, train_score, histories = [], [], []
+    selected_epochs, epochs_run = [], []
     for i in range(n_trials):
         cfg_i = {**config, "seed": seed_plan["trials"][i]["weights"],
                  "shuffle_seed": seed_plan["trials"][i]["shuffle"]}
@@ -55,31 +57,39 @@ def run_trials(config: dict, X_tr, y_tr, X_te, y_te, metrics: dict,
                   np.copy(X_tr[val_idx]) if use_validation else None)
         y_ev_i = (np.copy(y_te) if stage == "assess" else
                   np.copy(y_tr[val_idx]) if use_validation else None)
-        scaler_Y = None
-        
-        if config.get("scale", False):
-            scaler_X = StandardScaler()
-            X_tr_i = scaler_X.fit_transform(X_tr_i)
-            if X_ev_i is not None:
-                X_ev_i = scaler_X.transform(X_ev_i)
-            
-            scaler_Y = StandardScaler()
-            y_tr_i = scaler_Y.fit_transform(y_tr_i)
-            if y_ev_i is not None:
-                y_ev_i = scaler_Y.transform(y_ev_i)
+        X_tr_i, y_tr_i, X_ev_i, y_ev_i, scaler_Y = prepare_split(
+            X_tr_i, y_tr_i, X_ev_i, y_ev_i,
+            scale=bool(config.get("scale")),
+            classification=score_name == "acc" or str(config.get("task", "")).startswith("monk"))
+
+        # The training loss still uses the scaled targets. Evaluation metrics
+        # (including the validation score monitored for stopping) use the
+        # original target units.
+        fit_metrics = {name: original_target_metric(fn, scaler_Y)
+                       for name, fn in metrics.items()}
+        if use_validation:
+            fit_metrics[score_name] = original_target_metric(score_fn, scaler_Y)
 
         model = build_model(cfg_i)
 
         # Early stopping may inspect only a validation holdout from training.
         # Assessment always runs for the fixed number of epochs.
-        es = (EarlyStopping(patience=patience, min_delta=cfg_i.get("min_delta", 0.0))
+        es = (EarlyStopping(patience=patience,
+                            min_delta=cfg_i.get("min_delta") or 0.0,
+                            monitor=f"val_{score_name}",
+                            mode="max" if METRICS.get(score_name, (None, False))[1]
+                            else "min")
               if patience is not None else None)
 
         history = model.fit(X_tr_i, y_tr_i, epochs=cfg_i["epochs"],
                             batch_size=cfg_i.get("batch_size"),
                             validation_data=((X_ev_i, y_ev_i) if use_validation else None),
-                            metrics=metrics,
+                            metrics=fit_metrics,
                             early_stopping=es)
+
+        if es is not None:
+            selected_epochs.append(es.best_epoch)
+            epochs_run.append(len(history["loss"]))
 
         pred_tr = model.predict(X_tr_i)
         pred_ev = model.predict(X_ev_i) if X_ev_i is not None else None
@@ -121,4 +131,7 @@ def run_trials(config: dict, X_tr, y_tr, X_te, y_te, metrics: dict,
         })
     else:
         summary[f"per_trial_train_{score_name}"] = [float(a) for a in train_score]
+    if stage == "train" and patience is not None:
+        summary["selected_epochs"] = selected_epochs
+        summary["epochs_run"] = epochs_run
     return summary, histories

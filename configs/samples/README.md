@@ -20,10 +20,10 @@ opzionali, `null` ha questi significati:
 | `config.n_trials` | Una sola inizializzazione dei pesi per configurazione | Un intero almeno 2: ogni configurazione viene addestrata più volte, con pesi iniziali diversi e lo stesso split, e il report mostra media, varianza e deviazione standard tra le inizializzazioni |
 | `config.plot_top` | Salva i grafici delle prime 5 configurazioni | Un intero: quante configurazioni disegnare (`0` = nessun grafico) |
 | `fixed.batch_size` | Full batch | `1` per campione, oppure un intero maggiore per mini batch |
-| `fixed.scale` | Nessuna standardizzazione | `true` (per MONK con output sigmoide lasciare disattivato) |
+| `fixed.scale` | Nessuna standardizzazione | `true` per CUP; per MONK viene rifiutato |
 | `fixed.reg.lam` | Nessuna regolarizzazione | Un numero non negativo; `type` può essere `l1` o `l2` |
 | `fixed.patience` | Early stopping disattivato | Un intero positivo |
-| `fixed.min_delta` | Soglia predefinita `0.0` | Un numero non negativo quando si usa early stopping |
+| `fixed.min_delta` | Soglia predefinita `0.0` | Un numero non negativo: variazione di accuracy per MONK, MEE nelle unità originali per CUP; regola solo `patience` |
 | `fixed.init_kwargs` | Parametri predefiniti dell'inizializzatore | Con `init: "uniform"`, ad esempio `{"scale": 0.3}` |
 | `search.optimizer.momentum` | Momentum disattivato (`0.0`) | Un numero tra 0 e 1 con `type: "sgd"` |
 | `search.optimizer.nesterov` | Nesterov disattivato | `true` con SGD e momentum positivo |

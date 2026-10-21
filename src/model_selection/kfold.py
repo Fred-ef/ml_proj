@@ -11,7 +11,7 @@ import numpy as np
 from ..utils.metrics import METRICS
 from ..utils.seeding import derive_seed, resolve_seed
 from .early_stopping import EarlyStopping
-from ..data.preprocessing import StandardScaler
+from .scaling import original_target_metric, prepare_split
 
 
 def kfold_indices(n_samples: int, k: int, seed: int | None = None):
@@ -59,14 +59,20 @@ def cross_validate(build_model, config: dict, X, Y, k: int = 5, seed: int | None
         X_train, Y_train = X[train_idx], Y[train_idx]
         X_val, Y_val = X[val_idx], Y[val_idx]
 
-        if config.get("scale", False):
-            scaler_X = StandardScaler()
-            X_train = scaler_X.fit_transform(X_train)
-            X_val = scaler_X.transform(X_val)
-            
-            scaler_Y = StandardScaler()
-            Y_train = scaler_Y.fit_transform(Y_train)
-            Y_val = scaler_Y.transform(Y_val)
+        X_train, Y_train, X_val, Y_val, scaler_Y = prepare_split(
+            X_train, Y_train, X_val, Y_val,
+            scale=bool(config.get("scale")),
+            classification=metric == "acc" or str(config.get("task", "")).startswith("monk"))
+
+        report_fn = metric_fn
+        report_name = metric if metric_fn else None
+        score_train_key, score_val_key = train_key, val_key
+        if scaler_Y is not None:
+            original_fn = metric_fn if metric_fn else METRICS["mse"][0]
+            report_fn = original_target_metric(original_fn, scaler_Y)
+            if metric == "loss":
+                report_name = "reported_loss"
+                score_train_key, score_val_key = report_name, f"val_{report_name}"
 
         index = trial * k + fold_idx
 
@@ -81,7 +87,10 @@ def cross_validate(build_model, config: dict, X, Y, k: int = 5, seed: int | None
         patience = config.get('patience', None)
         if patience is not None:
             min_delta = config.get('min_delta') or 0.0
-            es_callback = EarlyStopping(patience=patience, min_delta=min_delta)
+            es_callback = EarlyStopping(
+                patience=patience, min_delta=min_delta,
+                monitor=score_val_key,
+                mode="max" if greater_is_better else "min")
         else:
             es_callback = None
 
@@ -92,20 +101,21 @@ def cross_validate(build_model, config: dict, X, Y, k: int = 5, seed: int | None
             batch_size=batch_size,
             validation_data=(X_val, Y_val),
             early_stopping=es_callback,
-            metrics={metric: metric_fn} if metric_fn else None
+            metrics={report_name: report_fn} if report_fn else None
         )
 
-        # Populating lists for train and validation curves
-        train_curves.append(history[train_key])
-        val_curves.append(history[val_key])
+        # Populating lists for train and validation curves, read from the same
+        # keys as the scores below so that both are in the same (reported) units.
+        train_curves.append(history[score_train_key])
+        val_curves.append(history[score_val_key])
 
         # Without early stopping, score the final trained model. With early
         # stopping, retain the validation-selected epoch for compatibility.
-        completed = len(history[val_key])
+        completed = len(history[score_val_key])
         selected_idx = (completed - 1 if es_callback is None
-                        else int(pick(history[val_key])))
-        val_scores.append(history[val_key][selected_idx])
-        train_scores.append(history[train_key][selected_idx])
+                        else int(pick(history[score_val_key])))
+        val_scores.append(history[score_val_key][selected_idx])
+        train_scores.append(history[score_train_key][selected_idx])
         best_epochs.append(selected_idx + 1)
         epochs_run.append(completed)
 
