@@ -106,7 +106,7 @@ def test_run_experiment_select_then_assess_chain(tmp_path):
     select_summary = json.loads((select_dir / "summary.json").read_text())
 
     assert select_summary["metric"] == "acc"
-    assert {"aggregate", "ranking"} <= set(select_summary)
+    assert "ranking" in select_summary and "aggregate" not in select_summary
     assert {"best_config", "best_epoch_median", "val_mean", "val_std"}.isdisjoint(select_summary)
     assert len(select_summary["ranking"]) == select_summary["n_configs"] == 2
 
@@ -127,7 +127,7 @@ def test_run_experiment_select_then_assess_chain(tmp_path):
     assert len(assess_summary["seed_plan"]["trials"]) == 2
 
 
-def test_run_experiment_select_with_holdout_reports_grid_error_stats(tmp_path):
+def test_run_experiment_select_with_holdout_reports_per_config_errors(tmp_path):
     select_payload = {
         "val_fraction": 0.25, "seed": 0, "n_core": 1,
         "fixed": {"loss": "mse", "epochs": 5, "batch_size": None},
@@ -155,10 +155,7 @@ def test_run_experiment_select_with_holdout_reports_grid_error_stats(tmp_path):
     assert all(row["train_error"] == pytest.approx(1 - row["train_mean"])
                and row["val_error"] == pytest.approx(1 - row["val_mean"])
                for row in ranking)
-    for name in ("train_error", "val_error"):
-        values = [row[name] for row in ranking]
-        assert summary["aggregate"][name]["mean"] == pytest.approx(np.mean(values))
-        assert summary["aggregate"][name]["variance"] == pytest.approx(np.var(values))
+    assert "aggregate" not in summary
 
 
 def test_random_select_seed_is_saved_and_can_be_replayed(tmp_path):

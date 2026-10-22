@@ -113,7 +113,6 @@ def _select(payload: dict, data: tuple, profile: TaskProfile):
                          val_fraction=payload.get("val_fraction"),
                          n_trials=n_trials)
     results = search["ranking"]
-    aggregate = search["aggregate"]
     mean_key, std_key = f"val_{metric}_mean", f"val_{metric}_std"
     train_mean_key, train_std_key = f"train_{metric}_mean", f"train_{metric}_std"
     summary = {
@@ -121,7 +120,6 @@ def _select(payload: dict, data: tuple, profile: TaskProfile):
         "validation_mode": "kfold" if payload.get("k") is not None else "holdout",
         "n_configs": len(results),
         "n_trials": n_trials,
-        "aggregate": aggregate,
         "seed_plan": search["seed_plan"],
         "ranking": [
             {"train_error": r["train_error"], "val_error": r["val_error"],

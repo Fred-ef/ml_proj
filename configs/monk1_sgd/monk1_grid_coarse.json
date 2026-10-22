@@ -1,24 +1,25 @@
 {
-  "task": "monk2",
+  "task": "monk1",
   "mode": "select",
-  "tag": "grid-sample",
+  "tag": "monk1-grid-coarse-sgd",
   "config": {
     "seed": null,
-    "n_core": 4,
+    "n_core": 8,
+    "n_trials": 10,
     "k": null,
     "val_fraction": 0.2,
     "fixed": {
       "init": "glorot",
       "init_kwargs": null,
       "loss": "mse",
-      "epochs": 50,
+      "epochs": 100,
       "batch_size": 1,
       "scale": null,
       "reg": {
         "type": "l2",
         "lam": null
       },
-      "patience": 10,
+      "patience": 40,
       "min_delta": 0.0001
     },
     "search": {
@@ -51,7 +52,7 @@
         "lr": {
           "scale": "log",
           "start": 0.1,
-          "stop": 0.01,
+          "stop": 0.00001,
           "factor": 10
         },
         "momentum": null,

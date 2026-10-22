@@ -83,6 +83,16 @@ def test_iter_values_includes_integer_bounds_and_descending_log_bounds():
                                  [0.1, 0.01, 0.001, 0.0001, 0.00001])
     assert list(iter_values({"scale": "log", "start": 0.001,
                              "stop": 0.1})) == pytest.approx([0.001, 0.01, 0.1])
+    assert list(iter_values({"scale": "linear", "start": 0,
+                             "stop": 0.9, "num": 4})) == pytest.approx([0, 0.3, 0.6, 0.9])
+    assert list(iter_values({"scale": "linear", "start": 0.9,
+                             "stop": 0, "num": 4})) == pytest.approx([0.9, 0.6, 0.3, 0])
+    assert list(iter_values({"scale": "linear", "start": 0,
+                             "stop": 0.99, "step": 0.33})) == pytest.approx(
+                                 [0, 0.33, 0.66, 0.99])
+    assert list(iter_values({"scale": "linear", "start": 0.99,
+                             "stop": 0, "step": 0.33})) == pytest.approx(
+                                 [0.99, 0.66, 0.33, 0])
 
 
 def test_compact_search_expands_to_200_unique_buildable_configurations():
@@ -132,6 +142,62 @@ def test_compact_search_expands_regularization_strengths():
                for config in configs)
 
 
+def test_fine_grid_compact_search_uses_nesterov_and_regularization_options():
+    path = (Path(__file__).resolve().parents[1] / "configs" / "monk1_sgd"
+            / "monk1_grid_fine.json")
+    payload = json.loads(path.read_text(encoding="utf-8"))["config"]
+    configs = list(iter_search_configs({**payload["fixed"], "n_inputs": 17},
+                                       payload["search"]))
+
+    assert len(configs) == 5
+    assert len({json.dumps(config, sort_keys=True) for config in configs}) == 5
+    for config in configs:
+        assert config["arch"] == [{"units": 4, "act": "tanh"},
+                                  {"units": 1, "act": "sigmoid"}]
+        assert config["optim"]["lr"] == 0.1
+        model = build_model(config)
+        assert model.optimizer.momentum == config["optim"].get("momentum", 0)
+        assert model.optimizer.nesterov == config["optim"].get("nesterov", False)
+        assert (model.regularizer is None) == (config["reg"] is None)
+    assert {(config["optim"]["momentum"], config["optim"]["nesterov"])
+            for config in configs} == {(0.9, True)}
+    assert {None if config["reg"] is None else config["reg"]["lam"]
+            for config in configs} == {None, 0.00001, 0.0001, 0.001, 0.01}
+
+
+def test_compact_search_interpolates_momentum_with_nesterov():
+    search = _search()
+    search["hidden_layers"] = {"scale": "int", "start": 1, "stop": 1}
+    search["hidden_units"] = [{"scale": "int", "start": 4, "stop": 4}]
+    search["optimizer"]["lr"] = {"scale": "log", "start": 0.1, "stop": 0.1}
+    search["optimizer"]["momentum"] = {
+        "scale": "linear", "start": 0, "stop": 0.99, "step": 0.33}
+    search["optimizer"]["nesterov"] = True
+
+    configs = list(iter_search_configs(_fixed(), search))
+
+    assert len(configs) == 4
+    assert {(config["optim"].get("momentum", 0),
+             config["optim"].get("nesterov", False)) for config in configs} == {
+                 (0, False), (0.33, True), (0.66, True), (0.99, True)}
+
+
+@pytest.mark.parametrize("momenta", [[], [0, 0], [1], [-0.1], [True]])
+def test_compact_search_rejects_invalid_momentum_lists(momenta):
+    search = _search()
+    search["optimizer"]["momentum"] = momenta
+    with pytest.raises(ValueError, match="momentum"):
+        list(iter_search_configs(_fixed(), search))
+
+
+def test_compact_search_rejects_non_boolean_include_none():
+    search = _search()
+    search["reg"] = {"type": "l2", "lam": {"scale": "log", "start": 0.01,
+                                             "stop": 0.001}, "include_none": "yes"}
+    with pytest.raises(ValueError, match="include_none"):
+        list(iter_search_configs(_fixed(), search))
+
+
 def test_compact_search_rejects_regularization_inside_optimizer():
     search = _search()
     search["optimizer"]["reg"] = {"type": "l2", "lam": 0.01}
@@ -155,6 +221,13 @@ def test_compact_search_rejects_conflicting_fixed_regularization():
     {"scale": "log", "start": 0, "stop": 0.1, "factor": 10},
     {"scale": "log", "start": 0.1, "stop": -0.01, "factor": 10},
     {"scale": "log", "start": 0.1, "stop": 0.001, "factor": 1},
+    {"scale": "linear", "start": 0, "stop": 0.9, "num": 0},
+    {"scale": "linear", "start": 0, "stop": 0.9, "num": True},
+    {"scale": "linear", "start": 0, "stop": 0.9, "num": 1},
+    {"scale": "linear", "start": 0.9, "stop": 0.9, "num": 4},
+    {"scale": "linear", "start": 0, "stop": 0.9, "step": 0},
+    {"scale": "linear", "start": 0, "stop": 0.9, "step": 0.4},
+    {"scale": "linear", "start": 0, "stop": 0.9, "step": 0.3, "num": 4},
     {"scale": "unknown", "start": 1, "stop": 2},
 ])
 def test_iter_values_rejects_invalid_ranges(spec):

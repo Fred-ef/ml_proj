@@ -314,8 +314,7 @@ def test_grid_search_ranks_ascending_for_a_lower_is_better_metric():
     results = search["ranking"]
     means = [r["val_mee_mean"] for r in results]
     assert means == sorted(means)   # ascending: lowest MEE (best) first
-    assert search["aggregate"]["val_error"]["mean"] == pytest.approx(np.mean(means))
-    assert search["aggregate"]["val_error"]["variance"] == pytest.approx(np.var(means))
+    assert "aggregate" not in search
 
 
 def test_grid_search_ranks_descending_for_a_higher_is_better_metric():
@@ -366,10 +365,10 @@ def test_grid_search_parallel_matches_sequential_ranking():
         return [(str(r["config"]), round(r["val_mee_mean"], 10)) for r in results]
 
     assert signature(seq["ranking"]) == signature(par["ranking"])
-    assert seq["aggregate"] == par["aggregate"]
+    assert "aggregate" not in seq and "aggregate" not in par
 
 
-def test_grid_search_holdout_uses_one_split_and_aggregates_classification_errors(
+def test_grid_search_holdout_uses_one_split_and_reports_classification_errors(
         monkeypatch, capsys):
     from src.model_selection import grid_search as grid_module
 
@@ -409,10 +408,7 @@ def test_grid_search_holdout_uses_one_split_and_aggregates_classification_errors
     assert all(np.array_equal(tr, first_train) and np.array_equal(vl, first_val)
                for tr, vl in seen_splits)
     assert [r["val_error"] for r in search["ranking"]] == pytest.approx([0.3, 0.4, 0.5])
-    assert search["aggregate"]["train_error"]["mean"] == pytest.approx(0.3)
-    assert search["aggregate"]["train_error"]["variance"] == pytest.approx(2 / 300)
-    assert search["aggregate"]["val_error"]["mean"] == pytest.approx(0.4)
-    assert search["aggregate"]["val_error"]["variance"] == pytest.approx(2 / 300)
+    assert "aggregate" not in search
 
 
 def test_grid_search_holdout_parallel_matches_sequential():
@@ -433,7 +429,7 @@ def test_grid_search_holdout_parallel_matches_sequential():
             for r in seq["ranking"]] == [
                 (r["config"], r["train_error"], r["val_error"])
                 for r in par["ranking"]]
-    assert seq["aggregate"] == par["aggregate"]
+    assert "aggregate" not in seq and "aggregate" not in par
 
 
 @pytest.mark.parametrize("metric,expected_train,expected_val", [

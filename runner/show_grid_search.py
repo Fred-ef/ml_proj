@@ -234,28 +234,19 @@ def _epoch_fields(row: dict, validation_mode: str) -> list[tuple[str, str]]:
 
 def format_select_summary(summary: dict, run_config: dict | None = None,
                           limit: int | None = 20) -> str:
-    """Show aggregate errors, shared settings and the first ranked configurations."""
+    """Show shared settings and the first ranked configurations."""
     metric = summary["metric"]
     metric_label = {"acc": "accuratezza", "mee": "MEE"}.get(metric, metric)
     order = {"acc": "accuratezza di validation decrescente",
              "mee": "MEE di validation crescente"}.get(
                  metric, "errore di validation crescente")
-    aggregate = summary["aggregate"]
     task = f"{run_config['task'].upper()}  |  " if run_config and "task" in run_config else ""
     lines = [
         "RISULTATI GRID SEARCH",
         f"  {task}Validazione: {summary['validation_mode']}  |  "
         f"Configurazioni: {summary['n_configs']}  |  Metrica: {metric_label}",
         "",
-        "MEDIA E VARIANZA DEGLI ERRORI TRA CONFIGURAZIONI",
-        "  (ogni configurazione conta come un valore: misura quanto cambiano",
-        "  gli errori al variare degli iperparametri, non dell'inizializzazione)",
-        f"  {'Insieme':<12} {'Media':>12} {'Varianza':>12}",
     ]
-    for name, label in (("train_error", "Training"), ("val_error", "Validation")):
-        stats = aggregate[name]
-        lines.append(f"  {label:<12} {_number(stats['mean']):>12} "
-                     f"{_number(stats['variance']):>12}")
 
     ranking = summary["ranking"]
     lines.extend(_ranking_table(ranking, limit))
@@ -340,7 +331,7 @@ def main(argv: list[str] | None = None) -> None:
         summary = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         parser.error(str(exc))
-    required = {"metric", "validation_mode", "n_configs", "aggregate", "ranking"}
+    required = {"metric", "validation_mode", "n_configs", "ranking"}
     if not isinstance(summary, dict) or not required <= summary.keys():
         parser.error(f"{path} is not a grid search summary")
     run_config = None

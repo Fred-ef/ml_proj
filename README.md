@@ -55,8 +55,8 @@ python -m experiments.cup_final       # CUP: retrain + blind-test CSV + abstract
 
 ## Grid search results
 
-The `select` mode saves aggregate training/validation errors and the full ranked
-configuration list in `summary.json`, then prints a readable report automatically:
+The `select` mode saves the full ranked configuration list in `summary.json`,
+then prints a readable report automatically:
 
 ```bash
 python -m runner --config configs/samples/monk_mod_selection.json
@@ -129,8 +129,7 @@ validation split. The ranking uses the mean over the trials. For each
 configuration the report adds the variance and standard deviation across
 initializations, and the validation score of each trial. This is different from
 the standard deviation across folds in k-fold validation, which measures how
-much the error changes with the data, and from the mean and variance in the
-aggregate block, which are computed across configurations.
+much the error changes with the data.
 
 The run directory also contains:
 

@@ -91,8 +91,6 @@ def test_report_shows_spread_across_initializations():
            "n_trials": 3, "train_init_var": 4e-6, "train_init_std": 0.002,
            "val_init_var": 1e-4, "val_init_std": 0.01, "per_trial_val": [0.2, 0.21, 0.19]}
     summary = {"metric": "mee", "validation_mode": "holdout", "n_configs": 1,
-               "aggregate": {name: {"mean": 0.1, "variance": 0.0}
-                             for name in ("train_error", "val_error")},
                "ranking": [row]}
     report = format_select_summary(summary)
 

@@ -22,10 +22,6 @@ def test_saved_report_shows_common_settings_and_complete_config_blocks(tmp_path,
     }
     summary = {
         "metric": "acc", "validation_mode": "holdout", "n_configs": 2,
-        "aggregate": {
-            "train_error": {"mean": 0.15, "variance": 0.0025},
-            "val_error": {"mean": 0.25, "variance": 0.0025},
-        },
         "ranking": [
             {"config": {**base, "optim": {"type": "sgd", "lr": 0.1, "momentum": 0.9}},
              "train_error": 0.1, "val_error": 0.2, "train_mean": 0.9,
@@ -45,7 +41,7 @@ def test_saved_report_shows_common_settings_and_complete_config_blocks(tmp_path,
     main([str(tmp_path)])
     report = capsys.readouterr().out
 
-    assert report.index("MEDIA E VARIANZA") < report.index("IMPOSTAZIONI COMUNI")
+    assert "MEDIA E VARIANZA DEGLI ERRORI TRA CONFIGURAZIONI" not in report
     assert report.index("IMPOSTAZIONI COMUNI") < report.index("CONFIGURAZIONE 1/2")
     assert "Quota validation" in report and "25%" in report
     assert "17 input -> 2 (tanh) -> 1 (sigmoid)" in report
@@ -85,7 +81,7 @@ def test_saved_report_shows_common_settings_and_complete_config_blocks(tmp_path,
     assert "Mediana epoche di miglior validation (criterio precedente)" in kfold_report
 
 
-def test_report_names_what_the_aggregate_block_measures_and_points_to_the_curves(tmp_path, capsys):
+def test_report_ignores_legacy_aggregate_and_points_to_curves(tmp_path, capsys):
     row = {"config": {"n_inputs": 1, "arch": [{"units": 1, "act": "sigmoid"}],
                       "optim": {"type": "sgd", "lr": 0.1}, "epochs": 3},
            "train_error": 0.1, "val_error": 0.2, "train_mean": 0.9, "val_mean": 0.8,
@@ -99,8 +95,8 @@ def test_report_names_what_the_aggregate_block_measures_and_points_to_the_curves
 
     main([str(tmp_path)])
     report = capsys.readouterr().out
-    assert "MEDIA E VARIANZA DEGLI ERRORI TRA CONFIGURAZIONI" in report
-    assert "non dell'inizializzazione" in report
+    assert "MEDIA E VARIANZA DEGLI ERRORI TRA CONFIGURAZIONI" not in report
+    assert "CONFIGURAZIONE 1/1" in report
     assert "Curve medie" not in report                  # no curves/ folder yet
 
     (tmp_path / "curves").mkdir()
@@ -127,8 +123,6 @@ def test_report_distinguishes_completed_epochs_from_best_validation_epochs():
     }
     summary = {
         "metric": "acc", "validation_mode": "holdout", "n_configs": 1,
-        "aggregate": {name: {"mean": 0.1, "variance": 0.0}
-                      for name in ("train_error", "val_error")},
         "ranking": [row],
     }
 
@@ -181,8 +175,6 @@ def test_report_shows_first_twenty_and_all_option_restores_full_list(tmp_path, c
         })
     summary = {
         "metric": "acc", "validation_mode": "holdout", "n_configs": 21,
-        "aggregate": {name: {"mean": 0.11, "variance": 0.003}
-                      for name in ("train_error", "val_error")},
         "ranking": ranking,
     }
     (tmp_path / "summary.json").write_text(json.dumps(summary), encoding="utf-8")

@@ -106,7 +106,7 @@ def grid_search(param_grid: Mapping[str, Iterable] | Iterable[dict], build_model
                 seed: int | None = None, metric: str = "loss",
                 n_core: int | None = 1, val_fraction: float | None = None,
                 n_trials: int = 1):
-    """Evaluate every config and return a ranking plus grid-wide error stats.
+    """Evaluate every config and return a ranking and reproducible seed plan.
 
     Accept a legacy mapping of grid axes or an iterable of complete configs.
     ``k=None`` uses one shared holdout split (20% validation by default).
@@ -155,16 +155,6 @@ def grid_search(param_grid: Mapping[str, Iterable] | Iterable[dict], build_model
              for position, cfg in enumerate(configs)]
     results = parallel_map(_evaluate_config, tasks, n_core)
 
-    aggregate = {}
-    for name in ("train_error", "val_error"):
-        # Workers return in completion order; sort to make floating-point
-        # aggregation identical to the sequential run.
-        values = np.asarray(sorted(result[name] for result in results), dtype=float)
-        aggregate[name] = {
-            "mean": float(np.mean(values)),
-            "variance": float(np.var(values, ddof=0)),
-        }
-
     results.sort(key=lambda result: (result["val_error"], result["_grid_index"]))
     for result in results:
         del result["_grid_index"]
@@ -175,4 +165,4 @@ def grid_search(param_grid: Mapping[str, Iterable] | Iterable[dict], build_model
          "shuffle": derive_seed(master_seed, "select_shuffle", i)}
         for i in range(n_trials * (1 if k is None else k))
     ]}
-    return {"ranking": results, "aggregate": aggregate, "seed_plan": seed_plan}
+    return {"ranking": results, "seed_plan": seed_plan}

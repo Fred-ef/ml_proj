@@ -6,6 +6,7 @@
     "seed": null,
     "n_core": 4,
     "k": null,
+    "n_trials": 10,
     "val_fraction": 0.2,
     "fixed": {
       "init": "glorot",
