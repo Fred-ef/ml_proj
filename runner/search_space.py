@@ -160,30 +160,39 @@ def iter_search_configs(fixed: dict, search: dict) -> Iterator[dict]:
         if any(rate <= 0 for rate in rates):
             raise ValueError("learning rates must be positive")
     # Null optional optimizer settings use the selected optimizer's defaults.
+    if "nesterov" in optimizer:
+        raise ValueError("nesterov must be set inside search.optimizer.momentum")
     momentum_spec = optimizer.get("momentum")
     if isinstance(momentum_spec, (list, dict)):
         if optimizer["type"] != "sgd":
             raise ValueError("momentum values require SGD")
-        nesterov = optimizer.get("nesterov")
-        if nesterov is not None and not isinstance(nesterov, bool):
-            raise ValueError("nesterov must be a boolean")
         if isinstance(momentum_spec, dict):
+            nesterov = momentum_spec.get("nesterov")
             include_zero = momentum_spec.get("include_zero", False)
             if not isinstance(include_zero, bool):
                 raise ValueError("momentum include_zero must be a boolean")
-            values = list(iter_values({key: value for key, value in momentum_spec.items()
-                                       if key != "include_zero"}))
+            value_spec = {key: value for key, value in momentum_spec.items()
+                          if key not in {"include_zero", "nesterov"}}
+            if "values" in value_spec:
+                if set(value_spec) != {"values"} or not isinstance(value_spec["values"], list):
+                    raise ValueError("momentum values require a list without range keys")
+                values = list(value_spec["values"])
+            else:
+                values = list(iter_values(value_spec))
             if include_zero:
                 values.insert(0, 0)
         else:
+            nesterov = None
             values = momentum_spec
+        if nesterov is not None and not isinstance(nesterov, bool):
+            raise ValueError("nesterov must be a boolean")
         if not values:
             raise ValueError("momentum values require a nonempty range or list")
         momenta = [float(_decimal(value, "momentum")) for value in values]
         if any(not 0 <= value < 1 for value in momenta) or len(set(momenta)) != len(momenta):
             raise ValueError("momentum values must be unique and in [0, 1)")
         optim_base = {key: value for key, value in optimizer.items()
-                      if key not in {"lr", "momentum", "nesterov"} and value is not None}
+                      if key not in {"lr", "momentum"} and value is not None}
         optim_variants = []
         for momentum in momenta:
             variant = dict(optim_base)

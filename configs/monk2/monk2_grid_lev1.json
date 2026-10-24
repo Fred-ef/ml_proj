@@ -54,7 +54,6 @@
           "factor": 10
         },
         "momentum": null,
-        "nesterov": null,
         "epsilon": null,
         "mu": null
       }

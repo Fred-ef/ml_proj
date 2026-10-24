@@ -41,7 +41,7 @@ class SGD(Optimizer):
     def __init__(self, lr: float | Callable = 0.01, momentum: float = 0.0, nesterov: bool = False) -> None:
         self.lr = lr
         self.momentum = momentum
-        self.nesterov = nesterov
+        self.nesterov = nesterov and momentum > 0
 
         # Per-parameter velocity; persists across steps to accumulate momentum.
         self.velocities = None

@@ -54,7 +54,6 @@
           "step": 0.2
         },
         "momentum": null,
-        "nesterov": null,
         "epsilon": null,
         "mu": null
       }

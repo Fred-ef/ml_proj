@@ -30,8 +30,11 @@
       "optimizer": {
         "type": "sgd",
         "lr": {"start": 0.1, "stop": 0.5, "scale": "linear", "step": 0.1},
-        "momentum": [0, 0.6, 0.7, 0.8, 0.9],
-        "nesterov": true
+        "momentum": {
+          "values": [0.6, 0.7, 0.8, 0.9],
+          "nesterov": true,
+          "include_zero": true
+        }
       },
       "reg": {
         "type": "l2",

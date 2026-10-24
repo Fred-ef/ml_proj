@@ -81,6 +81,29 @@ def test_saved_report_shows_common_settings_and_complete_config_blocks(tmp_path,
     assert "Mediana epoche di miglior validation (criterio precedente)" in kfold_report
 
 
+def test_nesterov_is_not_common_when_grid_includes_zero_momentum():
+    base = {"n_inputs": 1, "arch": [{"units": 1, "act": "sigmoid"}]}
+    ranking = [
+        {"config": {**base, "optim": optim},
+         "train_error": 0.1, "val_error": 0.2, "train_mean": 0.9,
+         "val_mean": 0.8, "train_std": None, "val_std": None,
+         "best_epoch_median": 1}
+        for optim in ({"type": "sgd", "lr": 0.1, "momentum": 0.8,
+                       "nesterov": True},
+                      {"type": "sgd", "lr": 0.1})
+    ]
+    report = format_select_summary({
+        "metric": "acc", "validation_mode": "holdout", "n_configs": 2,
+        "ranking": ranking,
+    })
+
+    common = report.split("IMPOSTAZIONI COMUNI", 1)[1].split(
+        "CONFIGURAZIONI ORDINATE", 1)[0]
+    assert "Nesterov" not in common
+    assert "Momentum" not in common
+    assert report.count("Nesterov") == 1
+
+
 def test_report_ignores_legacy_aggregate_and_points_to_curves(tmp_path, capsys):
     row = {"config": {"n_inputs": 1, "arch": [{"units": 1, "act": "sigmoid"}],
                       "optim": {"type": "sgd", "lr": 0.1}, "epochs": 3},

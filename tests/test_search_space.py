@@ -49,7 +49,7 @@ def test_null_options_are_disabled_and_can_be_enabled():
     ]
     search["optimizer"].update({
         "lr": {"scale": "log", "start": 0.1, "stop": 0.01, "factor": 10},
-        "momentum": None, "nesterov": None, "epsilon": None, "mu": None,
+        "momentum": None, "epsilon": None, "mu": None,
     })
     configs = list(iter_search_configs(fixed, search))
 
@@ -65,7 +65,9 @@ def test_null_options_are_disabled_and_can_be_enabled():
                      "reg": {"type": "l2", "lam": 0.01}}
     enabled_search = {**search,
                       "optimizer": {**search["optimizer"],
-                                    "momentum": 0.9, "nesterov": True}}
+                                    "momentum": {"scale": "linear", "start": 0.9,
+                                                 "stop": 0.9, "num": 1,
+                                                 "nesterov": True}}}
     enabled = next(iter_search_configs(enabled_fixed, enabled_search))
     enabled_model = build_model(enabled)
     assert enabled_model.layers[0].initializer.scale == 0.3
@@ -203,8 +205,8 @@ def test_compact_search_interpolates_momentum_with_nesterov():
     search["hidden_units"] = [{"scale": "int", "start": 4, "stop": 4}]
     search["optimizer"]["lr"] = {"scale": "log", "start": 0.1, "stop": 0.1}
     search["optimizer"]["momentum"] = {
-        "scale": "linear", "start": 0, "stop": 0.99, "step": 0.33}
-    search["optimizer"]["nesterov"] = True
+        "scale": "linear", "start": 0, "stop": 0.99, "step": 0.33,
+        "nesterov": True}
 
     configs = list(iter_search_configs(_fixed(), search))
 
@@ -212,6 +214,81 @@ def test_compact_search_interpolates_momentum_with_nesterov():
     assert {(config["optim"].get("momentum", 0),
              config["optim"].get("nesterov", False)) for config in configs} == {
                  (0, False), (0.33, True), (0.66, True), (0.99, True)}
+
+
+def test_nested_nesterov_is_ignored_when_include_zero_disables_momentum():
+    search = _search()
+    search["hidden_layers"] = {"scale": "int", "start": 1, "stop": 1}
+    search["hidden_units"] = [{"scale": "int", "start": 4, "stop": 4}]
+    search["optimizer"]["lr"] = [0.1]
+    search["optimizer"]["momentum"] = {
+        "scale": "linear", "start": 0.7, "stop": 0.9, "step": 0.1,
+        "nesterov": True, "include_zero": True,
+    }
+
+    configs = list(iter_search_configs(_fixed(), search))
+
+    assert len(configs) == 4
+    zero, *enabled = configs
+    assert zero["optim"] == {"type": "sgd", "lr": 0.1}
+    assert build_model(zero).optimizer.momentum == 0
+    assert build_model(zero).optimizer.nesterov is False
+    assert [(config["optim"]["momentum"], config["optim"]["nesterov"])
+            for config in enabled] == [(0.7, True), (0.8, True), (0.9, True)]
+
+
+def test_nested_nesterov_rejects_invalid_values():
+    search = _search()
+    search["optimizer"]["momentum"] = {
+        "scale": "linear", "start": 0.7, "stop": 0.9, "step": 0.1,
+        "nesterov": "yes",
+    }
+    with pytest.raises(ValueError, match="nesterov must be a boolean"):
+        list(iter_search_configs(_fixed(), search))
+
+
+@pytest.mark.parametrize("old_value", [True, False, None])
+def test_search_rejects_nesterov_outside_momentum(old_value):
+    search = _search()
+    search["optimizer"]["nesterov"] = old_value
+
+    with pytest.raises(ValueError, match="nesterov must be set inside"):
+        list(iter_search_configs(_fixed(), search))
+
+
+def test_nested_nesterov_with_explicit_momentum_values():
+    search = _search()
+    search["hidden_layers"] = {"scale": "int", "start": 1, "stop": 1}
+    search["hidden_units"] = [{"scale": "int", "start": 4, "stop": 4}]
+    search["optimizer"]["lr"] = [0.1]
+    search["optimizer"]["momentum"] = {
+        "values": [0.6, 0.7, 0.8, 0.9],
+        "nesterov": True, "include_zero": True,
+    }
+
+    configs = list(iter_search_configs(_fixed(), search))
+
+    assert [(config["optim"].get("momentum", 0),
+             config["optim"].get("nesterov", False)) for config in configs] == [
+                 (0, False), (0.6, True), (0.7, True), (0.8, True), (0.9, True)]
+
+
+@pytest.mark.parametrize("relative_path, expected_momenta", [
+    ("monk1/monk1_grid_coarse_top1.json", {0, 0.6, 0.7, 0.8, 0.9}),
+    ("monk2/monk2_grid_fine1.json", {0.7, 0.75, 0.8, 0.85, 0.9}),
+    ("monk2/monk2_grid_coarse_top1.json", {0, 0.5, 0.7, 0.9}),
+    ("monk2/monk2_grid_coarse2_full.json", {0, 0.5, 0.6, 0.7, 0.8, 0.9}),
+])
+def test_existing_nested_nesterov_searches(relative_path, expected_momenta):
+    path = Path(__file__).resolve().parents[1] / "configs" / relative_path
+    payload = json.loads(path.read_text(encoding="utf-8"))["config"]
+    configs = list(iter_search_configs({**payload["fixed"], "n_inputs": 17},
+                                       payload["search"]))
+
+    assert {config["optim"].get("momentum", 0) for config in configs} == expected_momenta
+    assert all(config["optim"].get("nesterov", False)
+               == (config["optim"].get("momentum", 0) > 0)
+               for config in configs)
 
 
 def test_compact_search_accepts_explicit_learning_rates():
