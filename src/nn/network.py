@@ -69,7 +69,7 @@ class Network:
         metrics: dict[str, Callable] | None = None,
     ) -> dict[str, list[float]]:
         """Train the network, populating and returning ``self.history``."""
-        self.history = {"loss": [], "val_loss": []}
+        self.history = {"loss": [], "val_loss": [], "objective": []}
         for _name in (metrics or {}):
             self.history[_name] = []
             self.history["val_" + _name] = []
@@ -111,6 +111,14 @@ class Network:
                 self.optimizer.step(params, grads)
             y_tr = self.forward(x_train)
             self.history["loss"].append(self.loss.value(y_tr, y_train))
+            
+            # For each layer (in self.layers) apply the penalty of self.regularizer on W and sum it up
+            penalty = 0
+            if self.regularizer:
+                for layer in self.layers:
+                    penalty += self.regularizer.penalty(layer.W)
+            self.history["objective"].append(self.loss.value(y_tr, y_train) + penalty)
+
             for _name, _fn in (metrics or {}).items():
                 self.history[_name].append(_fn(y_tr, y_train))
             if validation_data is not None:

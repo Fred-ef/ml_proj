@@ -50,6 +50,9 @@ def cross_validate(build_model, config: dict, X, Y, k: int = 5, seed: int | None
     epochs_run = []
     train_curves = []
     val_curves = []
+    train_loss_curves = []
+    val_loss_curves = []
+    objective_curves = []
 
     master_seed = resolve_seed(seed)
     split_seed = derive_seed(master_seed, "select_split")
@@ -108,6 +111,9 @@ def cross_validate(build_model, config: dict, X, Y, k: int = 5, seed: int | None
         # keys as the scores below so that both are in the same (reported) units.
         train_curves.append(history[score_train_key])
         val_curves.append(history[score_val_key])
+        train_loss_curves.append(history["loss"])
+        val_loss_curves.append(history["val_loss"])
+        objective_curves.append(history.get("objective", history["loss"]))
 
         # Without early stopping, score the final trained model. With early
         # stopping, retain the validation-selected epoch for compatibility.
@@ -135,4 +141,7 @@ def cross_validate(build_model, config: dict, X, Y, k: int = 5, seed: int | None
         "val_scores": [float(s) for s in val_scores],
         "train_curves": train_curves,
         "val_curves": val_curves,
+        "train_loss_curves": train_loss_curves,
+        "val_loss_curves": val_loss_curves,
+        "objective_curves": objective_curves
     }

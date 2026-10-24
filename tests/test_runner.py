@@ -217,12 +217,24 @@ def test_run_experiment_select_with_trials_saves_spread_and_curves(tmp_path, val
         for name in ("train", "val"):
             assert len(entry[name]["mean"]) == len(entry[name]["std"]) == 6
             assert entry[name]["n_alive"] == [runs] * 6    # no early stopping: nobody stops
+            assert len(entry["loss"][name]["mean"]) == len(entry["loss"][name]["std"]) == 6
+            assert entry["loss"][name]["n_alive"] == [runs] * 6
+        # reg is null: the objective (loss + penalty) is the training loss itself.
+        assert entry["loss"]["objective"]["mean"] == entry["loss"]["train"]["mean"]
+        # Sanity check: a tiny net starts by answering about 0.5, so the first MSE is about 0.5**2.
+        assert entry["loss"]["train"]["mean"][0] == pytest.approx(0.25, abs=0.05)
 
     # Plots: the first plot_top configurations, the comparison and the copy shown by the API.
     assert {p.name for p in (run_dir / "curves").iterdir()} == {
         "rank01.png", "rank02.png", "top_val.png"}
     assert ((run_dir / "learning_curve.png").read_bytes()
             == (run_dir / "curves" / "rank01.png").read_bytes())
+
+    # Two panels side by side (loss and metric): much wider than tall.
+    from matplotlib.image import imread
+    for name in ("rank01.png", "top_val.png"):
+        height, width = imread(run_dir / "curves" / name).shape[:2]
+        assert width > 2 * height
 
 
 def test_select_null_n_trials_and_plot_top_use_their_defaults(tmp_path):

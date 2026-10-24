@@ -543,9 +543,10 @@ async def open_run(task: str, run_id: str) -> None:
         if png is not None:
             ui.image(f"data:image/png;base64,{base64.b64encode(png).decode()}").classes("w-full")
             if "ranking" in run["summary"]:
-                ui.label("Curva media della configurazione migliore (banda = ± 1 dev. std tra le "
-                         "inizializzazioni). Le altre configurazioni sono in curves/ nella cartella "
-                         "del run.").classes("text-caption")
+                ui.label("Curve medie della configurazione migliore: loss a sinistra (con la "
+                         "regolarizzazione anche train + penalità), metrica a destra (banda = ± 1 "
+                         "dev. std tra le inizializzazioni). Le altre configurazioni sono in "
+                         "curves/ nella cartella del run.").classes("text-caption")
         else:
             ui.label("Nessuna curva di apprendimento per questo run "
                      "(i run select precedenti alle curve medie non la salvano).").classes("text-caption")

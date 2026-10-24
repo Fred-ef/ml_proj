@@ -37,6 +37,8 @@ def _evaluate_config(position, build_model, config, X, Y, k, seed, metric, split
     train_scores, val_scores = [], []
     train_curves, val_curves = [], []
     best_epochs, epochs_run = [], []
+    train_loss_curves, val_loss_curves = [], []
+    objective_curves = []
 
     for t in range(n_trials):
         if k is None:
@@ -53,6 +55,9 @@ def _evaluate_config(position, build_model, config, X, Y, k, seed, metric, split
         val_curves.append(scores["val_curves"])
         best_epochs.extend(scores["best_epochs"])
         epochs_run.extend(scores["epochs_run"])
+        train_loss_curves.append(scores["train_loss_curves"])
+        val_loss_curves.append(scores["val_loss_curves"])
+        objective_curves.append(scores["objective_curves"])
 
     train_stats = trial_statistics(train_scores)
     val_stats = trial_statistics(val_scores)
@@ -77,7 +82,10 @@ def _evaluate_config(position, build_model, config, X, Y, k, seed, metric, split
         "best_epochs": best_epochs,
         "epochs_run": epochs_run,
         "curves": {"train": aggregate_curves(train_curves),
-                   "val": aggregate_curves(val_curves)},
+                   "val": aggregate_curves(val_curves),
+                   "loss": {"train": aggregate_curves(train_loss_curves),
+                            "val": aggregate_curves(val_loss_curves),
+                            "objective": aggregate_curves(objective_curves)}},
         "train_error": train_error,
         "val_error": val_error,
     }

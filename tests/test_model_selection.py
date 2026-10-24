@@ -113,7 +113,8 @@ def test_cross_validate_default_metric_is_loss():
     assert set(result) == {"val_loss_mean", "val_loss_std", "train_loss_mean",
                            "train_loss_std", "best_epoch_median", "best_epochs",
                            "epochs_run", "train_scores", "val_scores",
-                           "train_curves", "val_curves"}
+                           "train_curves", "val_curves",
+                           "train_loss_curves", "val_loss_curves", "objective_curves"}
 
 
 # --- cross_validate: epoch selection (deterministic, no training) ------------
@@ -405,6 +406,9 @@ def test_grid_search_holdout_uses_one_split_and_reports_classification_errors(
             "val_scores": [0.7 - 0.1 * candidate],
             "train_curves": [[0.8 - 0.1 * candidate]],
             "val_curves": [[0.7 - 0.1 * candidate]],
+            "train_loss_curves": [[0.2 + 0.1 * candidate]],
+            "val_loss_curves": [[0.3 + 0.1 * candidate]],
+            "objective_curves": [[0.2 + 0.1 * candidate]],
         }
 
     monkeypatch.setattr(grid_module, "holdout_validate", fake_holdout_validate)
@@ -462,6 +466,7 @@ def test_holdout_reports_errors_in_original_target_units_when_scaled(
             return {
                 name: [score_fn(np.zeros_like(Y_train), Y_train)],
                 f"val_{name}": [score_fn(np.zeros_like(Y_val), Y_val)],
+                "loss": [0.0], "val_loss": [0.0],   # the real fit() always records the loss
             }
 
     X = np.arange(4, dtype=float).reshape(-1, 1)

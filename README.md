@@ -145,14 +145,18 @@ much the error changes with the data.
 
 The run directory also contains:
 
-- `curves.json`: mean per-epoch train and validation curves, with their standard
-  deviation across initializations and the number of runs still training at each
-  epoch, for every configuration in ranking order;
+- `curves.json`: mean per-epoch train and validation curves of the selection metric
+  and, under the `loss` key, of the loss (MSE) and of the training objective (loss
+  plus regularization penalty), with their standard deviation across initializations
+  and the number of runs still training at each epoch, for every configuration in
+  ranking order;
 - `curves/rankNN.png`: those curves for the first `plot_top` configurations (10 by
-  default), with a band of one standard deviation. With early stopping, runs end at
-  different epochs: the shaded region marks the epochs where the mean is taken over
-  fewer runs;
-- `curves/top_val.png`: the mean validation curves of those configurations together;
+  default), with a band of one standard deviation: the loss on the left (with
+  regularization, also the objective the optimizer minimizes), the selection metric
+  on the right. With early stopping, runs end at different epochs: the shaded region
+  marks the epochs where the mean is taken over fewer runs;
+- `curves/top_val.png`: the mean validation curves of those configurations together
+  (loss on the left, selection metric on the right);
 - `learning_curve.png`: a copy of the plot of the best configuration, which is the
   one the API and the web console show.
 

@@ -119,3 +119,74 @@ def test_scores_are_the_curve_values_at_the_selected_epoch(validation, scale, me
     for scores, curves in (("train_scores", "train_curves"), ("val_scores", "val_curves")):
         for score, curve, epoch in zip(result[scores], result[curves], result["best_epochs"]):
             assert score == curve[epoch - 1]
+
+
+def test_holdout_validate_returns_the_loss_curves_whatever_the_selection_metric():
+    history = {"loss": [0.9, 0.5, 0.3, 0.4], "val_loss": [1.0, 0.6, 0.4, 0.5],
+               "objective": [1.1, 0.7, 0.5, 0.6],
+               "acc": [0.5, 0.6, 0.8, 0.7], "val_acc": [0.4, 0.5, 0.7, 0.6]}
+    X, Y = np.zeros((6, 1)), np.zeros((6, 1))
+    split = np.arange(3), np.arange(3, 6)
+
+    result = holdout_validate(lambda cfg: FixedHistory(history), {"epochs": 4}, X, Y, *split,
+                              metric="acc")
+
+    assert result["train_curves"] == [[0.5, 0.6, 0.8, 0.7]]          # the selection metric
+    assert result["train_loss_curves"] == [[0.9, 0.5, 0.3, 0.4]]     # the loss, always
+    assert result["val_loss_curves"] == [[1.0, 0.6, 0.4, 0.5]]
+    assert result["objective_curves"] == [[1.1, 0.7, 0.5, 0.6]]      # loss + penalty
+
+
+def test_cross_validate_returns_one_loss_curve_per_fold():
+    histories = iter([
+        {"loss": [0.9, 0.5], "val_loss": [1.0, 0.6], "objective": [1.0, 0.7],
+         "acc": [0.5, 0.7], "val_acc": [0.4, 0.6]},
+        {"loss": [0.8, 0.4, 0.2], "val_loss": [0.9, 0.5, 0.3], "objective": [0.9, 0.6, 0.4],
+         "acc": [0.5, 0.7, 0.9], "val_acc": [0.4, 0.6, 0.8]},
+    ])
+    X, Y = np.zeros((6, 1)), np.zeros((6, 1))
+
+    result = cross_validate(lambda cfg: FixedHistory(next(histories)), {"epochs": 3},
+                            X, Y, k=2, seed=0, metric="acc")
+
+    assert result["train_loss_curves"] == [[0.9, 0.5], [0.8, 0.4, 0.2]]
+    assert result["val_loss_curves"] == [[1.0, 0.6], [0.9, 0.5, 0.3]]
+    assert result["objective_curves"] == [[1.0, 0.7], [0.9, 0.6, 0.4]]
+    assert result["val_curves"] == [[0.4, 0.6], [0.4, 0.6, 0.8]]      # unchanged: the metric
+
+
+@pytest.mark.parametrize("validation", ["holdout", "kfold"])
+def test_objective_curves_fall_back_to_the_loss_when_the_history_has_none(validation):
+    # A history without "objective" (e.g. a test double): without a penalty it is the loss.
+    history = {"loss": [0.9, 0.5], "val_loss": [1.0, 0.6]}
+    X, Y = np.zeros((6, 1)), np.zeros((6, 1))
+    if validation == "holdout":
+        result = holdout_validate(lambda cfg: FixedHistory(history), {"epochs": 2}, X, Y,
+                                  np.arange(3), np.arange(3, 6))
+    else:
+        result = cross_validate(lambda cfg: FixedHistory(history), {"epochs": 2},
+                                X, Y, k=2, seed=0)
+
+    assert all(curve == [0.9, 0.5] for curve in result["objective_curves"])
+
+
+@pytest.mark.parametrize("validation", ["holdout", "kfold"])
+def test_loss_and_objective_curves_come_from_training_not_from_the_selection_metric(validation):
+    # With scale=True the network trains on standardized targets, so its loss is of order 1,
+    # while the reported MEE is in the original units (here of order 30).
+    rng = np.random.default_rng(0)
+    X, Y = rng.standard_normal((30, 3)), 50 + 20 * rng.standard_normal((30, 2))
+    config = {"n_inputs": 3, "loss": "mse", "epochs": 5, "scale": True,
+              "arch": [{"units": 3, "act": "tanh"}, {"units": 2, "act": "identity"}],
+              "optim": {"type": "sgd", "lr": 0.05}, "reg": {"type": "l2", "lam": 0.01}}
+    if validation == "holdout":
+        train_idx, val_idx = holdout_indices(30, 0.25, seed=1)
+        result = holdout_validate(build_model, config, X, Y, train_idx, val_idx,
+                                  seed=5, metric="mee")
+    else:
+        result = cross_validate(build_model, config, X, Y, k=3, seed=5, metric="mee")
+
+    assert result["train_loss_curves"][0][-1] < 10 < result["train_curves"][0][-1]
+    assert len(result["train_loss_curves"][0]) == len(result["train_curves"][0]) == 5
+    # L2: the objective adds a positive penalty to that same loss.
+    assert result["objective_curves"][0][-1] > result["train_loss_curves"][0][-1]

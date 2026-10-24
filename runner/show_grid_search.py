@@ -351,7 +351,8 @@ def main(argv: list[str] | None = None) -> None:
                                 limit=None if args.all else (args.top or 20)))
     curves_dir = path.parent / "curves"
     if curves_dir.is_dir():
-        print(f"\nCurve medie (± dev. std tra inizializzazioni): {curves_dir}/rankNN.png"
+        print(f"\nCurve medie (loss a sinistra, metrica a destra; ± dev. std tra inizializzazioni): "
+              f"{curves_dir}/rankNN.png"
               f"\nConfronto delle validation migliori: {curves_dir / 'top_val.png'}")
 
 
