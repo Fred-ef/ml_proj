@@ -39,13 +39,19 @@ def _search():
     }
 
 
-def test_sample_config_null_options_are_disabled_and_can_be_enabled():
-    path = (Path(__file__).resolve().parents[1] / "configs" / "samples"
-            / "monk_mod_selection.json")
-    sample = json.loads(path.read_text(encoding="utf-8"))
-    payload = sample["config"]
-    fixed = {**payload["fixed"], "n_inputs": 17}
-    configs = list(iter_search_configs(fixed, payload["search"]))
+def test_null_options_are_disabled_and_can_be_enabled():
+    fixed = {**_fixed(), "init_kwargs": None, "scale": None,
+             "reg": {"type": "l2", "lam": None}}
+    search = _search()
+    search["hidden_units"] = [
+        {"scale": "int", "start": 1, "stop": 2},
+        {"scale": "int", "start": 1, "stop": 2},
+    ]
+    search["optimizer"].update({
+        "lr": {"scale": "log", "start": 0.1, "stop": 0.01, "factor": 10},
+        "momentum": None, "nesterov": None, "epsilon": None, "mu": None,
+    })
+    configs = list(iter_search_configs(fixed, search))
 
     assert len(configs) == 12
     assert all(config["reg"] is None for config in configs)
@@ -57,8 +63,8 @@ def test_sample_config_null_options_are_disabled_and_can_be_enabled():
 
     enabled_fixed = {**fixed, "init": "uniform", "init_kwargs": {"scale": 0.3},
                      "reg": {"type": "l2", "lam": 0.01}}
-    enabled_search = {**payload["search"],
-                      "optimizer": {**payload["search"]["optimizer"],
+    enabled_search = {**search,
+                      "optimizer": {**search["optimizer"],
                                     "momentum": 0.9, "nesterov": True}}
     enabled = next(iter_search_configs(enabled_fixed, enabled_search))
     enabled_model = build_model(enabled)
@@ -69,8 +75,8 @@ def test_sample_config_null_options_are_disabled_and_can_be_enabled():
 
     for kind, setting, default in (("adagrad", "epsilon", 1e-8),
                                    ("quickprop", "mu", 1.75)):
-        alternative = {**payload["search"],
-                       "optimizer": {**payload["search"]["optimizer"], "type": kind}}
+        alternative = {**search,
+                       "optimizer": {**search["optimizer"], "type": kind}}
         config = next(iter_search_configs(fixed, alternative))
         assert getattr(build_model(config).optimizer, setting) == default
 
@@ -93,6 +99,31 @@ def test_iter_values_includes_integer_bounds_and_descending_log_bounds():
     assert list(iter_values({"scale": "linear", "start": 0.99,
                              "stop": 0, "step": 0.33})) == pytest.approx(
                                  [0.99, 0.66, 0.33, 0])
+
+
+def test_linear_range_can_append_an_unaligned_stop():
+    assert list(iter_values({"scale": "linear", "start": 0.01,
+                             "stop": 0.9, "step": 0.2,
+                             "include_stop": True})) == pytest.approx(
+                                 [0.01, 0.21, 0.41, 0.61, 0.81, 0.9])
+
+
+def test_top3_compact_search_preserves_the_requested_grid():
+    path = (Path(__file__).resolve().parents[1] / "configs" / "monk1"
+            / "monk1_grid_coarse_top3.json")
+    payload = json.loads(path.read_text(encoding="utf-8"))["config"]
+    configs = list(iter_search_configs({**payload["fixed"], "n_inputs": 17},
+                                       payload["search"]))
+
+    assert len(configs) == 480
+    assert {tuple(layer["units"] for layer in config["arch"]) for config in configs} == {
+        (8, 1), (8, 2, 1), (8, 4, 1)}
+    assert {config["optim"]["lr"] for config in configs} == {
+        0.001, 0.01, 0.1, 1.0}
+    assert {config["optim"].get("momentum", 0) for config in configs} == {
+        0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9}
+    assert {None if config["reg"] is None else config["reg"]["lam"]
+            for config in configs} == {None, 0.0001, 0.001, 0.01}
 
 
 def test_compact_search_expands_to_200_unique_buildable_configurations():
@@ -143,26 +174,27 @@ def test_compact_search_expands_regularization_strengths():
 
 
 def test_fine_grid_compact_search_uses_nesterov_and_regularization_options():
-    path = (Path(__file__).resolve().parents[1] / "configs" / "monk1_sgd"
+    path = (Path(__file__).resolve().parents[1] / "configs" / "monk1"
             / "monk1_grid_fine.json")
     payload = json.loads(path.read_text(encoding="utf-8"))["config"]
     configs = list(iter_search_configs({**payload["fixed"], "n_inputs": 17},
                                        payload["search"]))
 
-    assert len(configs) == 5
-    assert len({json.dumps(config, sort_keys=True) for config in configs}) == 5
+    assert len(configs) == 48
+    assert len({json.dumps(config, sort_keys=True) for config in configs}) == 48
     for config in configs:
         assert config["arch"] == [{"units": 4, "act": "tanh"},
                                   {"units": 1, "act": "sigmoid"}]
-        assert config["optim"]["lr"] == 0.1
         model = build_model(config)
         assert model.optimizer.momentum == config["optim"].get("momentum", 0)
         assert model.optimizer.nesterov == config["optim"].get("nesterov", False)
         assert (model.regularizer is None) == (config["reg"] is None)
-    assert {(config["optim"]["momentum"], config["optim"]["nesterov"])
-            for config in configs} == {(0.9, True)}
+    assert {config["optim"]["lr"] for config in configs} == {0.005, 0.01, 0.05, 0.08}
+    assert {(config["optim"].get("momentum", 0),
+             config["optim"].get("nesterov", False)) for config in configs} == {
+                 (0.85, False), (0.9, False), (0.95, False)}
     assert {None if config["reg"] is None else config["reg"]["lam"]
-            for config in configs} == {None, 0.00001, 0.0001, 0.001, 0.01}
+            for config in configs} == {None, 0.0001, 0.001, 0.01}
 
 
 def test_compact_search_interpolates_momentum_with_nesterov():
@@ -180,6 +212,26 @@ def test_compact_search_interpolates_momentum_with_nesterov():
     assert {(config["optim"].get("momentum", 0),
              config["optim"].get("nesterov", False)) for config in configs} == {
                  (0, False), (0.33, True), (0.66, True), (0.99, True)}
+
+
+def test_compact_search_accepts_explicit_learning_rates():
+    search = _search()
+    search["hidden_layers"] = {"scale": "int", "start": 1, "stop": 1}
+    search["hidden_units"] = [{"scale": "int", "start": 4, "stop": 4}]
+    search["optimizer"]["lr"] = [0.01, 0.1, 0.5, 0.8]
+
+    configs = list(iter_search_configs(_fixed(), search))
+
+    assert len(configs) == 4
+    assert [config["optim"]["lr"] for config in configs] == [0.01, 0.1, 0.5, 0.8]
+
+
+@pytest.mark.parametrize("rates", [[], [0.1, 0.1], [0], [-0.1], [True]])
+def test_compact_search_rejects_invalid_learning_rate_lists(rates):
+    search = _search()
+    search["optimizer"]["lr"] = rates
+    with pytest.raises(ValueError, match="learning rate"):
+        list(iter_search_configs(_fixed(), search))
 
 
 @pytest.mark.parametrize("momenta", [[], [0, 0], [1], [-0.1], [True]])

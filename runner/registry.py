@@ -111,7 +111,7 @@ def _select(payload: dict, data: tuple, profile: TaskProfile):
                          k=payload.get("k"), seed=payload.get("seed"),
                          metric=metric, n_core=payload.get("n_core", -1),
                          val_fraction=payload.get("val_fraction"),
-                         n_trials=n_trials)
+                         n_trials=n_trials, stratify=payload.get("stratify", False))
     results = search["ranking"]
     mean_key, std_key = f"val_{metric}_mean", f"val_{metric}_std"
     train_mean_key, train_std_key = f"train_{metric}_mean", f"train_{metric}_std"

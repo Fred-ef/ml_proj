@@ -1,0 +1,39 @@
+{
+  "task": "cup",
+  "mode": "select",
+  "tag": "cup-grid-coarse",
+  "config": {
+    "seed": null,
+    "n_core": 16,
+    "n_trials": 5,
+    "k": 5,
+    "plot_top": 10,
+    "scale":true,
+    "fixed": {
+      "init": "glorot",
+      "loss": "mse",
+      "epochs": 5000,
+      "batch_size": null,
+      "scale": true,
+      "patience": 100,
+      "min_delta": 0.001,
+      "momentum": null,
+      "reg": null
+    },
+    "search": {
+      "hidden_layers": {"scale": "int", "start": 1, "stop": 4},
+      "hidden_units": [
+        {"scale": "log", "start": 32, "stop": 128, "factor": 2},
+        {"scale": "log", "start": 32, "stop": 128, "factor": 2},
+        {"scale": "log", "start": 32, "stop": 128, "factor": 2},
+        {"scale": "log", "start": 32, "stop": 128, "factor": 2}
+      ],
+      "hidden_activation": "relu",
+      "output": {"units": 4, "activation": "identity"},
+      "optimizer": {
+        "type": "sgd",
+        "lr":[0.01, 0.1]
+      }
+    }
+  }
+}

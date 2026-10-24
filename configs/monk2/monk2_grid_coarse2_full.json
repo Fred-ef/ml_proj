@@ -1,24 +1,21 @@
 {
-  "task": "monk1",
+  "task": "monk2",
   "mode": "select",
-  "tag": "monk1-grid-coarse-sgd",
+  "tag": "grid-coarse-online",
   "config": {
+    "stratify": true,
     "seed": null,
-    "n_core": 8,
-    "n_trials": 10,
+    "n_core": 16,
     "k": null,
+    "n_trials": 10,
     "val_fraction": 0.2,
     "fixed": {
       "init": "glorot",
       "init_kwargs": null,
       "loss": "mse",
-      "epochs": 100,
-      "batch_size": 1,
+      "epochs": 2000,
+      "batch_size": null,
       "scale": null,
-      "reg": {
-        "type": "l2",
-        "lam": null
-      },
       "patience": 40,
       "min_delta": 0.0001
     },
@@ -26,19 +23,13 @@
       "hidden_layers": {
         "scale": "int",
         "start": 1,
-        "stop": 2
+        "stop": 1
       },
       "hidden_units": [
         {
           "scale": "log",
-          "start": 1,
+          "start": 4,
           "stop": 8,
-          "factor": 2
-        },
-        {
-          "scale": "log",
-          "start": 1,
-          "stop": 4,
           "factor": 2
         }
       ],
@@ -48,17 +39,26 @@
         "activation": "sigmoid"
       },
       "optimizer": {
+        "nesterov": true,
         "type": "sgd",
         "lr": {
-          "scale": "log",
-          "start": 0.1,
-          "stop": 0.00001,
-          "factor": 10
+          "scale": "linear",
+          "start": 0.5,
+          "stop": 0.9,
+          "step": 0.1
         },
-        "momentum": null,
-        "nesterov": null,
-        "epsilon": null,
-        "mu": null
+        "momentum": {
+          "scale": "linear",
+          "start": 0.5,
+          "stop": 0.9,
+          "step": 0.1,
+          "include_zero": true
+        }
+      },
+      "reg": {
+        "type": "l2",
+        "lam": {"scale": "log", "start": 0.0001, "stop": 0.01, "factor": 10},
+        "include_none": true
       }
     }
   }

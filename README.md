@@ -68,9 +68,9 @@ To reopen a saved report without running training again:
 python -m runner.show_grid_search results/monk1/RUN_ID
 ```
 
-The reader shows the first 10 ranked configurations by default. To show every
-configuration saved in `summary.json`, add `--all`. It also accepts the path to
-`summary.json` directly.
+The reader shows the first 20 ranked configurations by default. Use `--top N`
+to choose a different number or `--all` to show every configuration. It also
+accepts the path to `summary.json` directly.
 
 `train` runs repeated training without using the test set. With `patience`, it
 creates one reproducible holdout from the training data (20% by default, or
@@ -83,14 +83,26 @@ has no effect in this mode.
 Set `assess.config.epochs` to the chosen configuration's
 `best_epoch_median` from `select`; the CLI does not copy it automatically.
 
-For MONK, early stopping monitors validation accuracy (higher is better). For
+For MONK classification, set `config.stratify: true` to preserve class
+proportions in a holdout split. This works in `select` with holdout validation
+and in `train` with its internal validation split. In `train`, setting
+`stratify: true` also creates that split when neither `patience` nor
+`val_fraction` is provided, using the default 20% validation fraction.
+The split keeps at least one sample of every class in both partitions; it
+raises an error when the requested fraction or class counts make this
+impossible. `stratify` defaults to `false` and is not available for k-fold,
+`assess`, or CUP regression.
+
+For MONK, early stopping monitors validation loss (lower is better), while
+configuration ranking and reported scores still use accuracy. For
 CUP, it monitors validation MEE in the original target units (lower is better).
 The best checkpoint follows the same metric and retains the first epoch when
 scores tie. When early stopping is enabled, the model's weights are restored to
 that checkpoint before it is scored. `min_delta` is an absolute improvement
 threshold for resetting the `patience` counter; it does not determine which
-checkpoint is best. For MONK, `min_delta: 0` lets every accuracy improvement
-reset the counter. In CUP, any nonzero `min_delta` is in original MEE units.
+checkpoint is best. For MONK, `min_delta` is in validation-loss units (MSE with
+the current configurations); `0` lets every strict loss improvement reset the
+counter. In CUP, any nonzero `min_delta` is in original MEE units.
 
 MONK's one-hot inputs and 0/1 targets are used without scaling; `scale: true`
 is rejected for MONK. For CUP, `scale: true` fits input and target scalers on
@@ -136,7 +148,7 @@ The run directory also contains:
 - `curves.json`: mean per-epoch train and validation curves, with their standard
   deviation across initializations and the number of runs still training at each
   epoch, for every configuration in ranking order;
-- `curves/rankNN.png`: those curves for the first `plot_top` configurations (5 by
+- `curves/rankNN.png`: those curves for the first `plot_top` configurations (10 by
   default), with a band of one standard deviation. With early stopping, runs end at
   different epochs: the shaded region marks the epochs where the mean is taken over
   fewer runs;

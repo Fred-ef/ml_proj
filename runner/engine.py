@@ -32,6 +32,11 @@ def run_experiment(
             f"mode={mode!r} is not allowed for task={task!r} "
             f"(allowed: {list(profile.allowed_modes)})"
         )
+    if payload.get("stratify"):
+        if mode == "assess":
+            raise ValueError("stratify applies only to train or select validation")
+        if profile.primary != "acc":
+            raise ValueError("stratify requires a classification task")
     requested_seed = payload.get("seed", None if mode == "select" else 0)
     master_seed = resolve_seed(requested_seed)
     seed_source = "generated" if requested_seed is None else "fixed"
@@ -65,10 +70,10 @@ def run_experiment(
 
     if curves is not None:
         save_grid_curves(run_dir, curves)
-        # null or missing = plot the first 5 configurations; 0 = no plots.
+        # null or missing = plot the first 10 configurations; 0 = no plots.
         top = model_payload.get("plot_top")
         _plot_grid_curves(run_dir, task, profile.primary, summary["ranking"], curves,
-                          top=5 if top is None else top)
+                          top=10 if top is None else top)
 
     _append_index(results_root, task, run_dir, model_payload, summary)
     return run_dir

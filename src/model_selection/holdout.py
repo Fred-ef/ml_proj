@@ -10,16 +10,54 @@ from .early_stopping import EarlyStopping
 from .scaling import original_target_metric, prepare_split
 
 
-def holdout_indices(n_samples: int, val_fraction: float, seed: int | None = None):
-    """Return shuffled train/validation indices, leaving both sets nonempty."""
+def holdout_indices(n_samples: int, val_fraction: float, seed: int | None = None,
+                    *, stratify_labels=None):
+    """Return train/validation indices, optionally preserving class proportions."""
     if n_samples < 2:
         raise ValueError("holdout requires at least two samples")
     if not 0 < val_fraction < 1:
         raise ValueError("val_fraction must be between 0 and 1")
 
-    indices = np.random.default_rng(seed).permutation(n_samples)
     n_val = min(max(1, int(np.ceil(n_samples * val_fraction))), n_samples - 1)
-    return indices[:-n_val], indices[-n_val:]
+    rng = np.random.default_rng(seed)
+    if stratify_labels is None:
+        indices = rng.permutation(n_samples)
+        return indices[:-n_val], indices[-n_val:]
+
+    labels = np.asarray(stratify_labels)
+    if labels.ndim == 2 and labels.shape[1] == 1:
+        labels = labels[:, 0]
+    if labels.ndim != 1 or len(labels) != n_samples:
+        raise ValueError("stratify_labels must have shape (n_samples,) or (n_samples, 1)")
+
+    classes, class_ids, counts = np.unique(labels, return_inverse=True,
+                                            return_counts=True)
+    n_classes = len(classes)
+    if np.any(counts < 2):
+        raise ValueError("stratified holdout requires at least two samples per class")
+    if n_val < n_classes or n_samples - n_val < n_classes:
+        raise ValueError("stratified holdout needs room for every class in both splits")
+
+    # Allocate exactly n_val samples. Start near the proportional quotas, then
+    # correct rounding while keeping at least one sample of each class per split.
+    quotas = counts * (n_val / n_samples)
+    val_counts = np.clip(np.floor(quotas).astype(int), 1, counts - 1)
+    while val_counts.sum() < n_val:
+        eligible = val_counts < counts - 1
+        chosen = int(np.argmax(np.where(eligible, quotas - val_counts, -np.inf)))
+        val_counts[chosen] += 1
+    while val_counts.sum() > n_val:
+        eligible = val_counts > 1
+        chosen = int(np.argmax(np.where(eligible, val_counts - quotas, -np.inf)))
+        val_counts[chosen] -= 1
+
+    train_parts, val_parts = [], []
+    for class_id, count in enumerate(val_counts):
+        indices = rng.permutation(np.flatnonzero(class_ids == class_id))
+        val_parts.append(indices[:count])
+        train_parts.append(indices[count:])
+    return (rng.permutation(np.concatenate(train_parts)),
+            rng.permutation(np.concatenate(val_parts)))
 
 
 def holdout_validate(build_model, config: dict, X, Y, train_idx, val_idx,
@@ -60,8 +98,9 @@ def holdout_validate(build_model, config: dict, X, Y, train_idx, val_idx,
     patience = config.get("patience")
     early_stopping = (EarlyStopping(patience=patience,
                                     min_delta=config.get("min_delta") or 0.0,
-                                    monitor=val_key,
-                                    mode="max" if greater_is_better else "min")
+                                    monitor="val_loss" if metric == "acc" else val_key,
+                                    mode="min" if metric == "acc" else
+                                    "max" if greater_is_better else "min")
                       if patience is not None else None)
     history = model.fit(
         X_train, Y_train,
@@ -75,8 +114,8 @@ def holdout_validate(build_model, config: dict, X, Y, train_idx, val_idx,
     if early_stopping is None:
         selected_idx = epochs_run - 1
     else:
-        pick = np.argmax if greater_is_better else np.argmin
-        selected_idx = int(pick(history[val_key]))
+        pick = np.argmax if early_stopping.mode == "max" else np.argmin
+        selected_idx = int(pick(history[early_stopping.monitor]))
     # Keep the existing summary keys: without early stopping they now refer
     # to the final epoch, not an earlier validation peak.
     return {

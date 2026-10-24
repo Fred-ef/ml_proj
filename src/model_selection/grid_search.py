@@ -105,7 +105,7 @@ def grid_search(param_grid: Mapping[str, Iterable] | Iterable[dict], build_model
                 k: int | None = None,
                 seed: int | None = None, metric: str = "loss",
                 n_core: int | None = 1, val_fraction: float | None = None,
-                n_trials: int = 1):
+                n_trials: int = 1, stratify: bool = False):
     """Evaluate every config and return a ranking and reproducible seed plan.
 
     Accept a legacy mapping of grid axes or an iterable of complete configs.
@@ -121,6 +121,10 @@ def grid_search(param_grid: Mapping[str, Iterable] | Iterable[dict], build_model
         raise ValueError("k must be at least 2")
     if k is not None and val_fraction is not None:
         raise ValueError("val_fraction applies only to holdout validation")
+    if stratify and k is not None:
+        raise ValueError("stratify applies only to holdout validation")
+    if stratify and metric != "acc":
+        raise ValueError("stratify requires a classification task")
     if n_trials < 1:
         raise ValueError("n_trials must be at least 1")
 
@@ -139,7 +143,8 @@ def grid_search(param_grid: Mapping[str, Iterable] | Iterable[dict], build_model
     split = None
     if k is None:
         split = holdout_indices(len(X), 0.2 if val_fraction is None else val_fraction,
-                                seed=split_seed)
+                                seed=split_seed,
+                                **({"stratify_labels": Y} if stratify else {}))
     elif k > len(X):
         raise ValueError("k cannot exceed the number of samples")
 

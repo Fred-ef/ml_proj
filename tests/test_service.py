@@ -114,7 +114,7 @@ def test_select_payload_defaults_n_core_to_all_cores_and_accepts_an_override():
 
 def test_select_payload_carries_n_trials_and_plot_top():
     default = JobRequest(task="monk1", mode="select", select={}).payload()
-    assert default["n_trials"] == 1 and default["plot_top"] == 5
+    assert default["n_trials"] == 1 and default["plot_top"] == 10
 
     chosen = JobRequest(task="monk1", mode="select",
                         select={"n_trials": 3, "plot_top": 0}).payload()

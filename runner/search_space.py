@@ -33,7 +33,8 @@ def iter_values(spec: dict) -> Iterator[int | float]:
         yield from range(start, stop + step, step)
     elif scale == "linear":
         if set(spec) not in ({"scale", "start", "stop", "num"},
-                             {"scale", "start", "stop", "step"}):
+                             {"scale", "start", "stop", "step"},
+                             {"scale", "start", "stop", "step", "include_stop"}):
             raise ValueError("linear range requires scale, start, stop and either num or step")
         start = _decimal(spec["start"], "linear start")
         stop = _decimal(spec["stop"], "linear stop")
@@ -48,12 +49,17 @@ def iter_values(spec: dict) -> Iterator[int | float]:
             if magnitude <= 0:
                 raise ValueError("linear step must be positive")
             distance = abs(stop - start)
-            if distance % magnitude:
+            include_stop = spec.get("include_stop", False)
+            if not isinstance(include_stop, bool):
+                raise ValueError("linear include_stop must be a boolean")
+            remainder = distance % magnitude
+            if remainder and not include_stop:
                 raise ValueError("linear step must reach stop exactly")
-            num = int(distance / magnitude) + 1
+            num = int(distance // magnitude) + 1
             step = magnitude if stop >= start else -magnitude
         for index in range(num):
-            value = stop if index == num - 1 else start + index * step
+            value = (stop if index == num - 1 and ("num" in spec or not remainder)
+                     else start + index * step)
             try:
                 result = float(value)
             except OverflowError as exc:
@@ -61,6 +67,11 @@ def iter_values(spec: dict) -> Iterator[int | float]:
             if not isfinite(result):
                 raise ValueError("linear range contains a value outside floating-point limits")
             yield int(value) if value == value.to_integral_value() else result
+        if "step" in spec and remainder and include_stop:
+            result = float(stop)
+            if not isfinite(result):
+                raise ValueError("linear range contains a value outside floating-point limits")
+            yield int(stop) if stop == stop.to_integral_value() else result
     elif scale == "log":
         if not {"scale", "start", "stop"} <= spec.keys() or set(spec) - {
                 "scale", "start", "stop", "factor"}:
@@ -125,12 +136,29 @@ def iter_search_configs(fixed: dict, search: dict) -> Iterator[dict]:
         raise ValueError("output needs positive integer units and an activation")
     if (not isinstance(optimizer, dict) or "lr" not in optimizer
             or not isinstance(optimizer.get("type"), str) or not optimizer["type"]):
-        raise ValueError("optimizer needs type and a learning-rate range")
+        raise ValueError("optimizer needs type and a learning-rate range or list")
     if "reg" in optimizer:
         raise ValueError("reg belongs in search, not search.optimizer")
-    rates = list(iter_values(optimizer["lr"]))
-    if any(rate <= 0 for rate in rates):
-        raise ValueError("learning rates must be positive")
+    rate_spec = optimizer["lr"]
+    if isinstance(rate_spec, list):
+        if not rate_spec:
+            raise ValueError("learning rates require a nonempty list")
+        rates = []
+        for value in rate_spec:
+            number = _decimal(value, "learning rate")
+            try:
+                rate = float(number)
+            except OverflowError as exc:
+                raise ValueError("learning rate is outside floating-point limits") from exc
+            if not isfinite(rate) or rate <= 0:
+                raise ValueError("learning rates must be positive and finite")
+            rates.append(rate)
+        if len(set(rates)) != len(rates):
+            raise ValueError("learning rates must be unique")
+    else:
+        rates = list(iter_values(rate_spec))
+        if any(rate <= 0 for rate in rates):
+            raise ValueError("learning rates must be positive")
     # Null optional optimizer settings use the selected optimizer's defaults.
     momentum_spec = optimizer.get("momentum")
     if isinstance(momentum_spec, (list, dict)):
@@ -139,7 +167,16 @@ def iter_search_configs(fixed: dict, search: dict) -> Iterator[dict]:
         nesterov = optimizer.get("nesterov")
         if nesterov is not None and not isinstance(nesterov, bool):
             raise ValueError("nesterov must be a boolean")
-        values = list(iter_values(momentum_spec)) if isinstance(momentum_spec, dict) else momentum_spec
+        if isinstance(momentum_spec, dict):
+            include_zero = momentum_spec.get("include_zero", False)
+            if not isinstance(include_zero, bool):
+                raise ValueError("momentum include_zero must be a boolean")
+            values = list(iter_values({key: value for key, value in momentum_spec.items()
+                                       if key != "include_zero"}))
+            if include_zero:
+                values.insert(0, 0)
+        else:
+            values = momentum_spec
         if not values:
             raise ValueError("momentum values require a nonempty range or list")
         momenta = [float(_decimal(value, "momentum")) for value in values]

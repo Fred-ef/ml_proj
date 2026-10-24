@@ -43,7 +43,6 @@ def cross_validate(build_model, config: dict, X, Y, k: int = 5, seed: int | None
     else:
         metric_fn, greater_is_better = METRICS[metric]
         val_key, train_key = f"val_{metric}", metric
-    pick = np.argmax if greater_is_better else np.argmin
 
     val_scores = []
     train_scores = []
@@ -89,8 +88,9 @@ def cross_validate(build_model, config: dict, X, Y, k: int = 5, seed: int | None
             min_delta = config.get('min_delta') or 0.0
             es_callback = EarlyStopping(
                 patience=patience, min_delta=min_delta,
-                monitor=score_val_key,
-                mode="max" if greater_is_better else "min")
+                monitor="val_loss" if metric == "acc" else score_val_key,
+                mode="min" if metric == "acc" else
+                "max" if greater_is_better else "min")
         else:
             es_callback = None
 
@@ -112,8 +112,11 @@ def cross_validate(build_model, config: dict, X, Y, k: int = 5, seed: int | None
         # Without early stopping, score the final trained model. With early
         # stopping, retain the validation-selected epoch for compatibility.
         completed = len(history[score_val_key])
-        selected_idx = (completed - 1 if es_callback is None
-                        else int(pick(history[score_val_key])))
+        if es_callback is None:
+            selected_idx = completed - 1
+        else:
+            pick = np.argmax if es_callback.mode == "max" else np.argmin
+            selected_idx = int(pick(history[es_callback.monitor]))
         val_scores.append(history[score_val_key][selected_idx])
         train_scores.append(history[score_train_key][selected_idx])
         best_epochs.append(selected_idx + 1)

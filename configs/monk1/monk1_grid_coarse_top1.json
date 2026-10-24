@@ -1,0 +1,43 @@
+{
+  "task": "monk1",
+  "mode": "select",
+  "tag": "monk1-grid-coarse2-minibatch-4",
+  "config": {
+    "stratify":true,
+    "seed": null,
+    "n_core": 16,
+    "n_trials": 10,
+    "plot_top": 10,
+    "k": null,
+    "val_fraction": 0.2,
+    "fixed": {
+      "init": "glorot",
+      "init_kwargs": null,
+      "loss": "mse",
+      "epochs": 300,
+      "batch_size": 4,
+      "scale": null,
+      "patience": 40,
+      "min_delta": 0.001
+    },
+    "search": {
+      "hidden_layers": {"scale": "int", "start": 1, "stop": 1},
+      "hidden_units": [
+        {"scale": "int", "start": 4, "stop": 4}
+      ],
+      "hidden_activation": "tanh",
+      "output": {"units": 1, "activation": "sigmoid"},
+      "optimizer": {
+        "type": "sgd",
+        "lr": {"start": 0.1, "stop": 0.5, "scale": "linear", "step": 0.1},
+        "momentum": [0, 0.6, 0.7, 0.8, 0.9],
+        "nesterov": true
+      },
+      "reg": {
+        "type": "l2",
+        "lam": {"scale": "log", "start": 0.0001, "stop": 0.01, "factor": 10},
+        "include_none": true
+      }
+    }
+  }
+}

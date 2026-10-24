@@ -3,6 +3,7 @@
 Usage:
     python -m runner.show_grid_search results/monk1/RUN_ID
     python -m runner.show_grid_search results/monk1/RUN_ID/summary.json
+    python -m runner.show_grid_search results/monk1/RUN_ID --top 20
     python -m runner.show_grid_search results/monk1/RUN_ID --all
 """
 
@@ -323,9 +324,14 @@ def format_select_summary(summary: dict, run_config: dict | None = None,
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Display a saved grid search result.")
     parser.add_argument("result", type=Path, help="run directory or summary.json path")
-    parser.add_argument("--all", action="store_true",
-                        help="show every configuration instead of the first 20")
+    selection = parser.add_mutually_exclusive_group()
+    selection.add_argument("--top", type=int, metavar="N",
+                           help="show the first N configurations (default: 20)")
+    selection.add_argument("--all", action="store_true",
+                           help="show every configuration")
     args = parser.parse_args(argv)
+    if args.top is not None and args.top < 1:
+        parser.error("--top must be a positive integer")
     path = args.result / "summary.json" if args.result.is_dir() else args.result
     try:
         summary = json.loads(path.read_text(encoding="utf-8"))
@@ -342,7 +348,7 @@ def main(argv: list[str] | None = None) -> None:
         except (OSError, json.JSONDecodeError):
             pass
     print(format_select_summary(summary, run_config=run_config,
-                                limit=None if args.all else 10))
+                                limit=None if args.all else (args.top or 20)))
     curves_dir = path.parent / "curves"
     if curves_dir.is_dir():
         print(f"\nCurve medie (± dev. std tra inizializzazioni): {curves_dir}/rankNN.png"

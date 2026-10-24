@@ -76,6 +76,7 @@ class TrainConfig(BaseModel):
     patience: Optional[int] = Field(default=None, gt=0)
     min_delta: float = Field(0.0, ge=0, allow_inf_nan=False)
     val_fraction: Optional[float] = Field(default=None, gt=0, lt=1)
+    stratify: bool = False
 
     @field_validator("min_delta", mode="before")
     @classmethod
@@ -86,6 +87,7 @@ class TrainConfig(BaseModel):
 class AssessConfig(TrainConfig):
     """TrainConfig + validation figures from a prior `select` run"""
 
+    stratify: Literal[False] = False
     val_mean: Optional[float] = None
     val_std: Optional[float] = None
 
@@ -95,10 +97,11 @@ class SelectConfig(BaseModel):
 
     k: Optional[int] = Field(default=None, ge=2)
     val_fraction: Optional[float] = Field(default=None, gt=0, lt=1)
+    stratify: bool = False
     seed: Optional[int] = Field(default=None, ge=0)
     n_core: Optional[int] = -1
     n_trials: int = Field(1, gt=0)      # weight initializations per configuration
-    plot_top: int = Field(5, ge=0)      # band plots saved for the best configurations
+    plot_top: int = Field(10, ge=0)     # band plots saved for the best configurations
     fixed: dict[str, Any] = Field(default_factory=dict)
     grid: dict[str, list[Any]] = Field(default_factory=dict)
 
@@ -106,6 +109,8 @@ class SelectConfig(BaseModel):
     def _one_validation_strategy(self) -> "SelectConfig":
         if self.k is not None and self.val_fraction is not None:
             raise ValueError("val_fraction applies only to holdout validation")
+        if self.k is not None and self.stratify:
+            raise ValueError("stratify applies only to holdout validation")
         return self
 
 
@@ -122,6 +127,8 @@ class JobRequest(BaseModel):
         needed = {"train": "config", "select": "select", "assess": "assess"}[self.mode]
         if getattr(self, needed) is None:
             raise ValueError(f"mode={self.mode!r} requires the {needed!r} field to be set")
+        if self.task == "cup" and getattr(self, needed).stratify:
+            raise ValueError("stratify requires a classification task")
         return self
 
     def payload(self) -> dict:

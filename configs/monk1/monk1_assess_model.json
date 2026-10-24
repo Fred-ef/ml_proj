@@ -1,0 +1,28 @@
+{
+  "task": "monk1",
+  "mode": "assess",
+  "tag": "monk1-assess-minibatch-6",
+  "config": {
+    "init": "glorot",
+    "init_kwargs": null,
+    "loss": "mse",
+    "epochs": 160,
+    "batch_size": 6,
+    "scale": null,
+    "reg": null,
+    "patience": null,
+    "n_inputs": 17,
+    "arch": [
+      {"units": 4, "act": "tanh"},
+      {"units": 1, "act": "sigmoid"}
+    ],
+    "optim": {
+      "type": "sgd",
+      "lr": 0.5,
+      "momentum": 0.7,
+      "nesterov": true
+    },
+    "seed": null,
+    "n_trials": 50
+  }
+}

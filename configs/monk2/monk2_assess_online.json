@@ -1,0 +1,31 @@
+{
+  "task": "monk2",
+  "mode": "assess",
+  "tag": "monk1-assess-online",
+  "config": {
+    "init": "glorot",
+    "init_kwargs": null,
+    "loss": "mse",
+    "epochs": 150,
+    "batch_size": 1,
+    "scale": null,
+    "patience": null,
+    "n_inputs": 17,
+          "reg": {
+        "type": "l2",
+        "lam": 0.0005
+      },
+    "arch": [
+      {"units": 4, "act": "tanh"},
+      {"units": 1, "act": "sigmoid"}
+    ],
+    "optim": {
+      "type": "sgd",
+      "lr": 0.0075,
+      "momentum": 0.9,
+      "nesterov": true
+    },
+    "seed": null,
+    "n_trials": 50
+  }
+}

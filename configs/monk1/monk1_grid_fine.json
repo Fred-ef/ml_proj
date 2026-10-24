@@ -1,0 +1,42 @@
+{
+  "task": "monk1",
+  "mode": "select",
+  "tag": "monk1-grid-fine-2",
+  "config": {
+    "seed": null,
+    "n_core": 12,
+    "n_trials": 10,
+    "plot_top": 10,
+    "k": null,
+    "val_fraction": 0.2,
+    "fixed": {
+      "init": "glorot",
+      "init_kwargs": null,
+      "loss": "mse",
+      "epochs": 500,
+      "batch_size": 1,
+      "scale": null,
+      "patience": 40,
+      "min_delta": 0.001
+    },
+    "search": {
+      "hidden_layers": {"scale": "int", "start": 1, "stop": 1},
+      "hidden_units": [
+        {"scale": "int", "start": 4, "stop": 4}
+      ],
+      "hidden_activation": "tanh",
+      "output": {"units": 1, "activation": "sigmoid"},
+      "optimizer": {
+        "type": "sgd",
+        "lr": [0.005 , 0.01, 0.05, 0.08],
+        "momentum": [0.85, 0.9, 0.95],
+        "nesterov": null
+      },
+      "reg": {
+        "type": "l2",
+        "lam": {"scale": "log", "start": 0.0001, "stop": 0.01, "factor": 10},
+        "include_none": true
+      }
+    }
+  }
+}

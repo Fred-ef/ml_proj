@@ -1,34 +1,35 @@
 {
-  "task": "monk1",
+  "task": "monk2",
   "mode": "select",
-  "tag": "grid-level1",
+  "tag": "grid-coarse-online",
   "config": {
-    "seed": 777777,
-    "n_core": 4,
+    "stratify": true,
+    "seed": null,
+    "n_core": 16,
+    "k": null,
+    "n_trials": 10,
     "val_fraction": 0.2,
     "fixed": {
       "init": "glorot",
+      "init_kwargs": null,
       "loss": "mse",
-      "epochs": 50,
+      "epochs": 1500,
       "batch_size": 1,
-      "reg": {
-        "type": "l2",
-        "lam": 0.04
-      },
-      "momentum": null,
-      "patience": 10,
-      "min_delta": 0.0
+      "scale": null,
+      "patience": 40,
+      "min_delta": 0.001,
+      "reg": null
     },
     "search": {
       "hidden_layers": {
-        "scale": "log",
+        "scale": "int",
         "start": 1,
         "stop": 2
       },
       "hidden_units": [
         {
           "scale": "log",
-          "start": 1,
+          "start": 2,
           "stop": 8,
           "factor": 2
         },
@@ -48,9 +49,14 @@
         "type": "sgd",
         "lr": {
           "scale": "log",
-          "start": 0.1,
-          "stop": 0.00001
-        }
+          "start": 1,
+          "stop": 0.01,
+          "factor": 10
+        },
+        "momentum": null,
+        "nesterov": null,
+        "epsilon": null,
+        "mu": null
       }
     }
   }

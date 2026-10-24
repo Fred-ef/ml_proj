@@ -1,10 +1,11 @@
 {
   "task": "monk2",
   "mode": "select",
-  "tag": "grid-sample",
+  "tag": "grid-coarse-online",
   "config": {
+    "stratify": true,
     "seed": null,
-    "n_core": 4,
+    "n_core": 16,
     "k": null,
     "n_trials": 10,
     "val_fraction": 0.2,
@@ -12,11 +13,12 @@
       "init": "glorot",
       "init_kwargs": null,
       "loss": "mse",
-      "epochs": 1500,
-      "batch_size": 16,
+      "epochs": 2000,
+      "batch_size": null,
       "scale": null,
-      "patience": 10,
-      "min_delta": 0.0
+      "patience": 40,
+      "min_delta": 0.001,
+      "reg": null
     },
     "search": {
       "hidden_layers": {
@@ -27,7 +29,7 @@
       "hidden_units": [
         {
           "scale": "log",
-          "start": 1,
+          "start": 2,
           "stop": 8,
           "factor": 2
         },
@@ -43,20 +45,13 @@
         "units": 1,
         "activation": "sigmoid"
       },
-      "reg": {
-        "type": "l2",
-        "lam": {
-          "scale": "log",
-          "start": 0.1,
-          "stop": 0.0001
-        }
-      },
       "optimizer": {
         "type": "sgd",
         "lr": {
-          "scale": "log",
-          "start": 0.9,
-          "stop": 0.01
+          "scale": "linear",
+          "start": 0.1,
+          "stop": 0.9,
+          "step": 0.2
         },
         "momentum": null,
         "nesterov": null,

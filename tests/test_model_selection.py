@@ -148,23 +148,30 @@ def test_cross_validate_without_early_stopping_scores_final_epoch(
     assert result["best_epoch_median"] == 3
     assert result["epochs_run"] == [3, 3]
 
-def test_cross_validate_picks_the_max_epoch_for_a_higher_is_better_metric(monkeypatch):
+def test_cross_validate_selects_monk_epoch_by_loss_but_reports_accuracy(monkeypatch):
     fixed_history = {
         "loss":     [0.9, 0.5, 0.3, 0.4, 0.2],
         "val_loss": [0.9, 0.6, 0.4, 0.5, 0.3],
         "acc":      [0.5, 0.6, 0.90, 0.70, 0.80],
-        "val_acc":  [0.5, 0.6, 0.95, 0.70, 0.80],   # best (highest) at index 2
+        "val_acc":  [0.5, 0.6, 0.95, 0.70, 0.80],   # accuracy peaks at index 2
     }
-    monkeypatch.setattr(Network, "fit", lambda self, *a, **k: dict(fixed_history))
+    callbacks = []
+
+    def fake_fit(self, *args, **kwargs):
+        callbacks.append(kwargs["early_stopping"])
+        return dict(fixed_history)
+
+    monkeypatch.setattr(Network, "fit", fake_fit)
 
     X, y = classification_data(n=10)
     result = cross_validate(build_model, classification_config(epochs=5, patience=10),
                             X, y, k=2, seed=0, metric="acc")
 
-    assert result["val_acc_mean"] == pytest.approx(0.95)     # the MAX, not e.g. the last epoch
-    assert result["train_acc_mean"] == pytest.approx(0.90)   # train value at the SAME index
-    assert result["best_epochs"] == [3, 3]                   # index 2 -> 1-based epoch 3
-    assert result["best_epoch_median"] == 3
+    assert all(cb.monitor == "val_loss" and cb.mode == "min" for cb in callbacks)
+    assert result["val_acc_mean"] == pytest.approx(0.80)
+    assert result["train_acc_mean"] == pytest.approx(0.80)
+    assert result["best_epochs"] == [5, 5]  # loss minimum at epoch 5
+    assert result["best_epoch_median"] == 5
     assert result["epochs_run"] == [5, 5]
 
 
@@ -204,27 +211,35 @@ def test_cross_validate_records_actual_epochs_run_per_fold(monkeypatch):
 
 def test_holdout_selects_final_epoch_without_early_stopping_and_best_with_it(monkeypatch):
     history = {
-        "loss": [0.9, 0.2, 0.4], "val_loss": [0.9, 0.1, 0.3],
-        "acc": [0.5, 0.95, 0.7], "val_acc": [0.5, 0.99, 0.8],
+        "loss": [0.9, 0.2, 0.1, 0.4], "val_loss": [0.9, 0.2, 0.1, 0.3],
+        "acc": [0.5, 0.95, 0.7, 0.6], "val_acc": [0.5, 0.99, 0.8, 0.6],
     }
-    monkeypatch.setattr(Network, "fit", lambda self, *a, **k: dict(history))
+    callbacks = []
+
+    def fake_fit(self, *args, **kwargs):
+        callbacks.append(kwargs["early_stopping"])
+        return dict(history)
+
+    monkeypatch.setattr(Network, "fit", fake_fit)
     X, y = classification_data(n=10)
     train_idx, val_idx = np.arange(8), np.arange(8, 10)
 
-    final = holdout_validate(build_model, classification_config(epochs=3),
+    final = holdout_validate(build_model, classification_config(epochs=4),
                              X, y, train_idx, val_idx, seed=0, metric="acc")
     selected = holdout_validate(build_model,
-                                classification_config(epochs=3, patience=10),
+                                classification_config(epochs=4, patience=10),
                                 X, y, train_idx, val_idx, seed=0, metric="acc")
 
-    assert final["train_acc_mean"] == pytest.approx(0.7)
-    assert final["val_acc_mean"] == pytest.approx(0.8)
-    assert final["best_epochs"] == [3]
-    assert final["epochs_run"] == [3]
-    assert selected["train_acc_mean"] == pytest.approx(0.95)
-    assert selected["val_acc_mean"] == pytest.approx(0.99)
-    assert selected["best_epochs"] == [2]
-    assert selected["epochs_run"] == [3]
+    assert callbacks[0] is None
+    assert callbacks[1].monitor == "val_loss" and callbacks[1].mode == "min"
+    assert final["train_acc_mean"] == pytest.approx(0.6)
+    assert final["val_acc_mean"] == pytest.approx(0.6)
+    assert final["best_epochs"] == [4]
+    assert final["epochs_run"] == [4]
+    assert selected["train_acc_mean"] == pytest.approx(0.7)
+    assert selected["val_acc_mean"] == pytest.approx(0.8)
+    assert selected["best_epochs"] == [3]
+    assert selected["epochs_run"] == [4]
 
 
 # --- cross_validate: real end-to-end wiring (metrics dict really reaches fit) -
@@ -538,3 +553,24 @@ def test_train_trials_use_internal_validation_and_never_touch_test(monkeypatch):
     assert "val_mee_mean" not in summary and "test_mee_mean" not in summary
     assert all(validation is None and es is None and len(x_train) == len(X)
                for x_train, validation, es in fit_calls)
+
+
+def test_monk_train_trials_stop_on_validation_loss_and_report_accuracy(monkeypatch):
+    X, y = classification_data()
+    callbacks = []
+    original_fit = Network.fit
+
+    def spy_fit(self, *args, **kwargs):
+        callbacks.append(kwargs["early_stopping"])
+        return original_fit(self, *args, **kwargs)
+
+    monkeypatch.setattr(Network, "fit", spy_fit)
+    cfg = classification_config(epochs=8, n_trials=2, patience=3)
+    summary, histories = run_trials(cfg, X, y, None, None, metrics={},
+                                    score_fn=accuracy, score_name="acc", stage="train")
+
+    assert all(cb.monitor == "val_loss" and cb.mode == "min" for cb in callbacks)
+    assert "val_acc_mean" in summary
+    assert all("val_loss" in history and "val_acc" in history for history in histories)
+    assert summary["selected_epochs"] == [int(np.argmin(h["val_loss"])) + 1
+                                          for h in histories]

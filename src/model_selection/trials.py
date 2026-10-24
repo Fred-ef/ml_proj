@@ -29,12 +29,19 @@ def run_trials(config: dict, X_tr, y_tr, X_te, y_te, metrics: dict,
     n_trials  = config.get("n_trials", 5)
     master_seed = resolve_seed(config.get("seed", 0))
     patience = config.get("patience") if stage == "train" else None
+    stratify = bool(config.get("stratify", False))
+    if stratify and stage != "train":
+        raise ValueError("stratify applies only to train validation")
+    if stratify and score_name != "acc":
+        raise ValueError("stratify requires a classification task")
     use_validation = stage == "train" and (patience is not None or
-                                             config.get("val_fraction") is not None)
+                                             config.get("val_fraction") is not None or stratify)
     split_seed = derive_seed(master_seed, "train_split") if use_validation else None
     val_fraction = config.get("val_fraction")
     train_idx, val_idx = (holdout_indices(len(X_tr), 0.2 if val_fraction is None else val_fraction,
-                                         seed=split_seed) if use_validation else
+                                         seed=split_seed,
+                                         **({"stratify_labels": y_tr} if stratify else {}))
+                          if use_validation else
                           (None, None))
     seed_plan = {"scheme": SEED_SCHEME, "root": master_seed, "trials": [
         {"weights": derive_seed(master_seed, "trial_weights", i),
@@ -63,8 +70,8 @@ def run_trials(config: dict, X_tr, y_tr, X_te, y_te, metrics: dict,
             classification=score_name == "acc" or str(config.get("task", "")).startswith("monk"))
 
         # The training loss still uses the scaled targets. Evaluation metrics
-        # (including the validation score monitored for stopping) use the
-        # original target units.
+        # use the original target units; MONK stops on validation loss, while
+        # CUP stops on validation MEE in those original units.
         fit_metrics = {name: original_target_metric(fn, scaler_Y)
                        for name, fn in metrics.items()}
         if use_validation:
@@ -76,8 +83,9 @@ def run_trials(config: dict, X_tr, y_tr, X_te, y_te, metrics: dict,
         # Assessment always runs for the fixed number of epochs.
         es = (EarlyStopping(patience=patience,
                             min_delta=cfg_i.get("min_delta") or 0.0,
-                            monitor=f"val_{score_name}",
-                            mode="max" if METRICS.get(score_name, (None, False))[1]
+                            monitor="val_loss" if score_name == "acc" else f"val_{score_name}",
+                            mode="min" if score_name == "acc" else
+                            "max" if METRICS.get(score_name, (None, False))[1]
                             else "min")
               if patience is not None else None)
 
