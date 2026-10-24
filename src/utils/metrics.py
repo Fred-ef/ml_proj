@@ -18,8 +18,8 @@ def mee(y_pred: np.ndarray, y_true: np.ndarray) -> float:
 
 
 def mse(y_pred: np.ndarray, y_true: np.ndarray) -> float:
-    """Mean Squared Error."""
-    return float(np.mean((y_pred - y_true) ** 2))
+    """Mean per-sample sum of squared errors."""
+    return float(np.sum((y_pred - y_true) ** 2) / y_pred.shape[0])
 
 
 def accuracy(y_pred: np.ndarray, y_true: np.ndarray, threshold: float = 0.5) -> float:

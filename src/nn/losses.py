@@ -24,19 +24,17 @@ class Loss:
 
 
 class MSE(Loss):
-    """Mean Squared Error. Primary training loss for both MONK and CUP."""
+    """Mean per-sample sum of squared errors, used by MONK and CUP."""
 
     name = "mse"
 
     def value(self, y_pred: np.ndarray, y_true: np.ndarray) -> float:
-        # calculate the mean squared error 
-        # MSE = (1/n) * sum((y_pred - y_true)^2)
-        return np.mean((y_pred - y_true)**2)
+        # Average over examples, summing the squared errors of their outputs.
+        return float(np.sum((y_pred - y_true) ** 2) / y_pred.shape[0])
 
     def gradient(self, y_pred: np.ndarray, y_true: np.ndarray) -> np.ndarray:
-        # The exact derivative of np.mean((y_pred - y_true)**2)
-        # d MSE / d y_pred = (2/n) * (y_pred - y_true)
-        return 2.0 * (y_pred - y_true) / y_pred.size
+        # Derivative of the per-sample mean used in value().
+        return 2.0 * (y_pred - y_true) / y_pred.shape[0]
 
 
 class CrossEntropy(Loss):

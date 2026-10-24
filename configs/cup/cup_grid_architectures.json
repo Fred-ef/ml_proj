@@ -1,0 +1,43 @@
+{
+  "task": "cup",
+  "mode": "select",
+  "tag": "cup-grid-architectures",
+  "config": {
+    "seed": null,
+    "n_core": 16,
+    "n_trials": 5,
+    "k": 3,
+    "plot_top": 30,
+    "scale": null,
+    "fixed": {
+      "init": "glorot",
+      "loss": "mse",
+      "epochs": 2000,
+      "batch_size": null,
+      "scale": true,
+      "plot_top": 30,
+      "patience": 50,
+      "min_delta": 0.001,
+      "momentum": null,
+      "reg": null
+    },
+    "grid": {
+      "arch": [
+        [{"units": 32, "act": "relu"}, {"units": 4, "act": "identity"}],
+        [{"units": 64, "act": "relu"}, {"units": 4, "act": "identity"}],
+        [{"units": 128, "act": "relu"}, {"units": 4, "act": "identity"}],
+        [{"units": 32, "act": "relu"}, {"units": 32, "act": "relu"}, {"units": 4, "act": "identity"}],
+        [{"units": 64, "act": "relu"}, {"units": 32, "act": "relu"}, {"units": 4, "act": "identity"}],
+        [{"units": 64, "act": "relu"}, {"units": 64, "act": "relu"}, {"units": 4, "act": "identity"}],
+        [{"units": 128, "act": "relu"}, {"units": 64, "act": "relu"}, {"units": 4, "act": "identity"}],
+        [{"units": 64, "act": "relu"}, {"units": 32, "act": "relu"}, {"units": 16, "act": "relu"}, {"units": 4, "act": "identity"}],
+        [{"units": 128, "act": "relu"}, {"units": 64, "act": "relu"}, {"units": 32, "act": "relu"}, {"units": 4, "act": "identity"}],
+        [{"units": 128, "act": "relu"}, {"units": 64, "act": "relu"}, {"units": 32, "act": "relu"}, {"units": 16, "act": "relu"}, {"units": 4, "act": "identity"}]
+      ],
+      "optim": [
+        {"type": "sgd", "lr": 0.01},
+        {"type": "sgd", "lr": 0.1}
+      ]
+    }
+  }
+}

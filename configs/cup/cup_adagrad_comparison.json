@@ -1,0 +1,36 @@
+{
+  "task": "cup",
+  "mode": "select",
+  "tag": "cup-adagrad-comparison",
+  "config": {
+    "seed": 14519447252736229041,
+    "n_core": 3,
+    "n_trials": 1,
+    "k": 3,
+    "plot_top": 3,
+    "fixed": {
+      "init": "glorot",
+      "loss": "mse",
+      "epochs": 3000,
+      "batch_size": null,
+      "scale": true,
+      "patience": 75,
+      "min_delta": 0.0001,
+      "reg": {"type": "l2", "lam": 0.01}
+    },
+    "grid": {
+      "arch": [[
+        {"units": 128, "act": "relu"},
+        {"units": 64, "act": "relu"},
+        {"units": 64, "act": "relu"},
+        {"units": 64, "act": "relu"},
+        {"units": 4, "act": "identity"}
+      ]],
+      "optim": [
+        {"type": "sgd", "lr": 0.05, "momentum": 0.9, "nesterov": true},
+        {"type": "adagrad", "lr": 0.01},
+        {"type": "adagrad", "lr": 0.05}
+      ]
+    }
+  }
+}
