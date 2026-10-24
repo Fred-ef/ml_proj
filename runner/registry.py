@@ -125,6 +125,7 @@ def _select(payload: dict, data: tuple, profile: TaskProfile):
             {"train_error": r["train_error"], "val_error": r["val_error"],
              "train_mean": r[train_mean_key], "train_std": r[train_std_key],
              "val_mean": r[mean_key], "val_std": r[std_key],
+             "val_data_loss": r["val_data_loss"],
              "best_epoch_median": r["best_epoch_median"],
              "best_epochs": r["best_epochs"],
              "epochs_run": r["epochs_run"],

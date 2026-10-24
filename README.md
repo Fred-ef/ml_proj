@@ -137,7 +137,10 @@ for disabled features, see `configs/samples/monk_mod_selection.json` and
 
 With `n_trials` greater than 1 in `select`, every configuration is trained that
 many times with different weight initializations (and batch order) on the same
-validation split. The ranking uses the mean over the trials. For each
+validation split. The ranking uses the mean over the trials. Configurations
+with the same mean validation score (for example several at 100% accuracy on
+MONK) are ordered by their mean validation loss at the selected epoch: the MSE
+on the data, without the regularization penalty. For each
 configuration the report adds the variance and standard deviation across
 initializations, and the validation score of each trial. This is different from
 the standard deviation across folds in k-fold validation, which measures how

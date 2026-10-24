@@ -172,12 +172,16 @@ def _ranking_table(ranking: list[dict], limit: int | None) -> list[str]:
     n_trials = ranking[0]["n_trials"]
     spread = (f"errore medio ± dev. std tra {n_trials} inizializzazioni dei pesi"
               if n_trials > 1 else "una sola inizializzazione: nessuna dev. std")
+    # Summaries saved before the tie-break have no validation loss: no column.
+    with_loss = all("val_data_loss" in row for row in rows)
     lines = ["", f"CLASSIFICA SINTETICA ({spread})",
-             f"  {'#':>3}  {'Validation':<24} {'Training':<24} {'Epoca':>6}"]
+             f"  {'#':>3}  {'Validation':<24} {'Training':<24} {'Epoca':>6}"
+             + (f"  {'Loss val':>10}" if with_loss else "")]
     for rank, row in enumerate(rows, start=1):
         lines.append(f"  {rank:>3}  {cell(row['val_error'], row['val_init_std']):<24} "
                      f"{cell(row['train_error'], row['train_init_std']):<24} "
-                     f"{row['best_epoch_median']:>6}")
+                     f"{row['best_epoch_median']:>6}"
+                     + (f"  {_number(row['val_data_loss']):>10}" if with_loss else ""))
     return lines
 
 
@@ -241,6 +245,10 @@ def format_select_summary(summary: dict, run_config: dict | None = None,
     order = {"acc": "accuratezza di validation decrescente",
              "mee": "MEE di validation crescente"}.get(
                  metric, "errore di validation crescente")
+    # Ties in the validation score are ordered by validation loss (absent from older
+    # summaries; with metric "loss" the two criteria coincide).
+    if metric != "loss" and all("val_data_loss" in row for row in summary["ranking"]):
+        order += "; a parità, loss di validation crescente"
     task = f"{run_config['task'].upper()}  |  " if run_config and "task" in run_config else ""
     lines = [
         "RISULTATI GRID SEARCH",
@@ -298,6 +306,10 @@ def format_select_summary(summary: dict, run_config: dict | None = None,
         elif metric not in ("mee", "loss"):
             results.extend(((f"{metric_label} training", _number(row["train_mean"])),
                             (f"{metric_label} validation", _number(row["val_mean"]))))
+        if "val_data_loss" in row:
+            units = "MSE, target standardizzati" if row["config"].get("scale") else "MSE"
+            results.append((f"Loss validation all'epoca scelta ({units})",
+                            _number(row["val_data_loss"])))
         for name, label in (("train_std", "training"), ("val_std", "validation")):
             std = row[name]
             if std is not None:

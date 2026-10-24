@@ -39,6 +39,7 @@ def _evaluate_config(position, build_model, config, X, Y, k, seed, metric, split
     best_epochs, epochs_run = [], []
     train_loss_curves, val_loss_curves = [], []
     objective_curves = []
+    val_data_losses = []
 
     for t in range(n_trials):
         if k is None:
@@ -58,12 +59,16 @@ def _evaluate_config(position, build_model, config, X, Y, k, seed, metric, split
         train_loss_curves.append(scores["train_loss_curves"])
         val_loss_curves.append(scores["val_loss_curves"])
         objective_curves.append(scores["objective_curves"])
+        val_data_losses.append(
+            [v[p - 1] for v, p in zip(val_loss_curves[-1], scores["best_epochs"])]
+        )
 
     train_stats = trial_statistics(train_scores)
     val_stats = trial_statistics(val_scores)
 
     train_error = 1.0 - train_stats["mean"] if metric == "acc" else train_stats["mean"]
     val_error = 1.0 - val_stats["mean"] if metric == "acc" else val_stats["mean"]
+    val_data_loss_mean = trial_statistics(val_data_losses)["mean"]
 
     return {
         "config": config,
@@ -88,6 +93,7 @@ def _evaluate_config(position, build_model, config, X, Y, k, seed, metric, split
                             "objective": aggregate_curves(objective_curves)}},
         "train_error": train_error,
         "val_error": val_error,
+        "val_data_loss": val_data_loss_mean,
     }
 
 
@@ -168,7 +174,8 @@ def grid_search(param_grid: Mapping[str, Iterable] | Iterable[dict], build_model
              for position, cfg in enumerate(configs)]
     results = parallel_map(_evaluate_config, tasks, n_core)
 
-    results.sort(key=lambda result: (result["val_error"], result["_grid_index"]))
+    results.sort(key=lambda result: (round(result["val_error"], 12),
+                                     result["val_data_loss"], result["_grid_index"]))
     for result in results:
         del result["_grid_index"]
 

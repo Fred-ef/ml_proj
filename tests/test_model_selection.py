@@ -407,7 +407,7 @@ def test_grid_search_holdout_uses_one_split_and_reports_classification_errors(
             "train_curves": [[0.8 - 0.1 * candidate]],
             "val_curves": [[0.7 - 0.1 * candidate]],
             "train_loss_curves": [[0.2 + 0.1 * candidate]],
-            "val_loss_curves": [[0.3 + 0.1 * candidate]],
+            "val_loss_curves": [[0.5, 0.4, 0.3 + 0.1 * candidate]],  # best epoch 3: third value
             "objective_curves": [[0.2 + 0.1 * candidate]],
         }
 
