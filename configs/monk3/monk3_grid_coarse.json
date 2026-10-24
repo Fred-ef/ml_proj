@@ -1,0 +1,55 @@
+{
+  "task": "monk3",
+  "mode": "select",
+  "tag": "monk3-grid-coarse",
+  "config": {
+    "stratify": true,
+    "seed": null,
+    "n_core": 16,
+    "n_trials": 10,
+    "k": null,
+    "val_fraction": 0.2,
+    "fixed": {
+      "init": "glorot",
+      "init_kwargs": null,
+      "loss": "mse",
+      "epochs": 1000,
+      "batch_size": null,
+      "scale": null,
+      "patience": 40,
+      "min_delta": 0.001
+    },
+    "search": {
+      "hidden_layers": {
+        "scale": "int",
+        "start": 1,
+        "stop": 1
+      },
+      "hidden_units": [
+        {
+          "scale": "log",
+          "start": 2,
+          "stop": 8,
+          "factor": 2
+        }
+      ],
+      "hidden_activation": "tanh",
+      "output": {
+        "units": 1,
+        "activation": "sigmoid"
+      },
+      "optimizer": {
+        "type": "sgd",
+        "lr": [
+          0.01,
+          0.05,
+          0.1,
+          0.3,
+          0.5,
+          0.7,
+          0.9
+        ]
+      }
+    }
+  }
+}
