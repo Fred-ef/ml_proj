@@ -128,6 +128,38 @@ def test_top3_compact_search_preserves_the_requested_grid():
             for config in configs} == {None, 0.0001, 0.001, 0.01}
 
 
+def test_cup_coarse2_search_keeps_exact_architectures_and_rates():
+    path = (Path(__file__).resolve().parents[1] / "configs" / "cup"
+            / "cup_grid_coarse2.json")
+    payload = json.loads(path.read_text(encoding="utf-8"))["config"]
+    configs = list(iter_search_configs({**payload["fixed"], "n_inputs": 10},
+                                       payload["search"]))
+
+    assert len(configs) == 20
+    assert {tuple(layer["units"] for layer in config["arch"][:-1])
+            for config in configs} == {
+                (128, 64), (128, 128), (64, 64, 64),
+                (128, 64, 32), (128, 128, 128),
+            }
+    assert {config["optim"]["lr"] for config in configs} == {
+        0.0001, 0.001, 0.01, 0.1,
+    }
+    assert all(config["optim"]["type"] == "sgd" for config in configs)
+
+
+@pytest.mark.parametrize("architectures", [
+    [], [[]], [[0]], [[True]], [[64.0]], [[64], [64]],
+])
+def test_explicit_architectures_reject_invalid_or_duplicate_choices(architectures):
+    search = _search()
+    del search["hidden_layers"]
+    del search["hidden_units"]
+    search["architectures"] = architectures
+
+    with pytest.raises(ValueError, match="architectures"):
+        list(iter_search_configs(_fixed(), search))
+
+
 def test_compact_search_expands_to_200_unique_buildable_configurations():
     fixed = _fixed()
     search = _search()
@@ -235,6 +267,78 @@ def test_nested_nesterov_is_ignored_when_include_zero_disables_momentum():
     assert build_model(zero).optimizer.nesterov is False
     assert [(config["optim"]["momentum"], config["optim"]["nesterov"])
             for config in enabled] == [(0.7, True), (0.8, True), (0.9, True)]
+
+
+@pytest.mark.parametrize("nesterov", [False, True])
+def test_nested_nesterov_scalar_generates_one_variant(nesterov):
+    search = _search()
+    search["hidden_layers"] = {"scale": "int", "start": 1, "stop": 1}
+    search["hidden_units"] = [{"scale": "int", "start": 4, "stop": 4}]
+    search["optimizer"]["lr"] = [0.1]
+    search["optimizer"]["momentum"] = {
+        "values": [0.8], "nesterov": nesterov,
+    }
+
+    configs = list(iter_search_configs(_fixed(), search))
+
+    assert len(configs) == 1
+    assert configs[0]["optim"] == {
+        "type": "sgd", "lr": 0.1, "momentum": 0.8, "nesterov": nesterov,
+    }
+    assert build_model(configs[0]).optimizer.nesterov is nesterov
+
+
+def test_nested_nesterov_list_expands_only_positive_momenta():
+    search = _search()
+    search["hidden_layers"] = {"scale": "int", "start": 1, "stop": 1}
+    search["hidden_units"] = [{"scale": "int", "start": 4, "stop": 4}]
+    search["optimizer"]["lr"] = [0.1]
+    search["optimizer"]["momentum"] = {
+        "values": [0.7, 0.8], "nesterov": [False, True], "include_zero": True,
+    }
+
+    configs = list(iter_search_configs(_fixed(), search))
+
+    assert len(configs) == len({json.dumps(config, sort_keys=True) for config in configs}) == 5
+    assert [config["optim"] for config in configs] == [
+        {"type": "sgd", "lr": 0.1},
+        {"type": "sgd", "lr": 0.1, "momentum": 0.7, "nesterov": False},
+        {"type": "sgd", "lr": 0.1, "momentum": 0.7, "nesterov": True},
+        {"type": "sgd", "lr": 0.1, "momentum": 0.8, "nesterov": False},
+        {"type": "sgd", "lr": 0.1, "momentum": 0.8, "nesterov": True},
+    ]
+    assert [build_model(config).optimizer.nesterov for config in configs] == [
+        False, False, True, False, True,
+    ]
+
+
+def test_nested_nesterov_list_does_not_repeat_explicit_zero():
+    search = _search()
+    search["hidden_layers"] = {"scale": "int", "start": 1, "stop": 1}
+    search["hidden_units"] = [{"scale": "int", "start": 4, "stop": 4}]
+    search["optimizer"]["lr"] = [0.1]
+    search["optimizer"]["momentum"] = {
+        "values": [0, 0.8], "nesterov": [False, True], "include_zero": True,
+    }
+
+    configs = list(iter_search_configs(_fixed(), search))
+
+    assert len(configs) == 3
+    assert sum("momentum" not in config["optim"] for config in configs) == 1
+    assert sum("nesterov" not in config["optim"] for config in configs) == 1
+
+
+@pytest.mark.parametrize("nesterov", [
+    None, 0, "true", [], [True, True], [False, False], [True, 0], ["false", True],
+])
+def test_nested_nesterov_rejects_invalid_option_lists(nesterov):
+    search = _search()
+    search["optimizer"]["momentum"] = {
+        "values": [0.8], "nesterov": nesterov,
+    }
+
+    with pytest.raises(ValueError, match="nesterov"):
+        list(iter_search_configs(_fixed(), search))
 
 
 def test_nested_nesterov_rejects_invalid_values():

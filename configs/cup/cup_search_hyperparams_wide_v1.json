@@ -1,0 +1,44 @@
+{
+  "task": "cup",
+  "mode": "select",
+  "tag": "cup-grid-hyperparams-wide",
+  "config": {
+    "seed": null,
+    "n_core": 16,
+    "n_trials": 5,
+    "val_fraction": 0.2,
+    "plot_top": 10,
+    "fixed": {
+      "init": "glorot",
+      "loss": "mse",
+      "epochs": 1000,
+      "scale": true,
+      "patience": 50,
+      "min_delta": 0.001
+    },
+    "grid": {
+      "arch": [
+        [{"units": 64, "act": "tanh"}, {"units": 32, "act": "tanh"}, {"units": 4, "act": "identity"}],
+        [{"units": 128, "act": "tanh"}, {"units": 64, "act": "tanh"}, {"units": 32, "act": "tanh"}, {"units": 4, "act": "identity"}]
+      ],
+      "batch_size": [15, 32],
+      "optim": [
+        {"type": "sgd", "lr": 0.0001, "momentum": 0.0},
+        {"type": "sgd", "lr": 0.0001, "momentum": 0.5, "nesterov": true},
+        {"type": "sgd", "lr": 0.0001, "momentum": 0.7, "nesterov": true},
+        {"type": "sgd", "lr": 0.0001, "momentum": 0.9, "nesterov": true},
+        {"type": "sgd", "lr": 0.001, "momentum": 0.0},
+        {"type": "sgd", "lr": 0.001, "momentum": 0.7, "nesterov": true},
+        {"type": "sgd", "lr": 0.001, "momentum": 0.9, "nesterov": true}
+      ],
+      "reg": [
+        {"type": "l1", "lam": 0.00001},
+        {"type": "l1", "lam": 0.0001},
+        {"type": "l1", "lam": 0.001},
+        {"type": "l2", "lam": 0.00001},
+        {"type": "l1", "lam": 0.0001},
+        {"type": "l2", "lam": 0.001}
+      ]
+    }
+  }
+}

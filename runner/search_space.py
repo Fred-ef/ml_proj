@@ -103,25 +103,43 @@ def iter_search_configs(fixed: dict, search: dict) -> Iterator[dict]:
     """Yield complete build_model configurations directly from a compact search."""
     if not isinstance(fixed, dict) or not isinstance(search, dict):
         raise ValueError("fixed and search must be objects")
-    expected = {"hidden_layers", "hidden_units", "hidden_activation", "output",
-                "optimizer"}
-    if set(search) - {"reg"} != expected:
-        raise ValueError(f"search must contain {sorted(expected)} and optional reg")
+    common = {"hidden_activation", "output", "optimizer"}
+    fields = set(search) - {"reg"}
+    if fields not in (common | {"hidden_layers", "hidden_units"},
+                      common | {"architectures"}):
+        raise ValueError("search requires hidden_activation, output, optimizer, "
+                         "and either hidden_layers with hidden_units or architectures; "
+                         "reg is optional")
     if "arch" in fixed or "optim" in fixed:
         raise ValueError("arch and optim belong in search, not fixed")
     if "reg" in search and fixed.get("reg") is not None:
         raise ValueError("reg cannot be set in both fixed and search")
 
-    depths = list(iter_values(search["hidden_layers"]))
-    if any(not isinstance(depth, int) or depth < 1 for depth in depths):
-        raise ValueError("hidden_layers must contain positive integers")
-    unit_specs = search["hidden_units"]
-    if not isinstance(unit_specs, list) or len(unit_specs) != max(depths):
-        raise ValueError("hidden_units needs one range for each possible hidden layer")
-    widths = [list(iter_values(spec)) for spec in unit_specs]
-    if any(not all(isinstance(unit, int) and unit > 0 for unit in axis)
-           for axis in widths):
-        raise ValueError("hidden_units ranges must contain positive integers")
+    if "architectures" in search:
+        architectures = search["architectures"]
+        if (not isinstance(architectures, list) or not architectures
+                or any(not isinstance(units, list) or not units
+                       or any(isinstance(unit, bool) or not isinstance(unit, int)
+                              or unit < 1 for unit in units)
+                       for units in architectures)):
+            raise ValueError("architectures must be a nonempty list of nonempty "
+                             "lists of positive integer hidden units")
+        unit_combinations = [tuple(units) for units in architectures]
+        if len(set(unit_combinations)) != len(unit_combinations):
+            raise ValueError("architectures must be unique")
+    else:
+        depths = list(iter_values(search["hidden_layers"]))
+        if any(not isinstance(depth, int) or depth < 1 for depth in depths):
+            raise ValueError("hidden_layers must contain positive integers")
+        unit_specs = search["hidden_units"]
+        if not isinstance(unit_specs, list) or len(unit_specs) != max(depths):
+            raise ValueError("hidden_units needs one range for each possible hidden layer")
+        widths = [list(iter_values(spec)) for spec in unit_specs]
+        if any(not all(isinstance(unit, int) and unit > 0 for unit in axis)
+               for axis in widths):
+            raise ValueError("hidden_units ranges must contain positive integers")
+        unit_combinations = (units for depth in depths
+                             for units in product(*widths[:depth]))
 
     hidden_act = search["hidden_activation"]
     output = search["output"]
@@ -167,7 +185,19 @@ def iter_search_configs(fixed: dict, search: dict) -> Iterator[dict]:
         if optimizer["type"] != "sgd":
             raise ValueError("momentum values require SGD")
         if isinstance(momentum_spec, dict):
-            nesterov = momentum_spec.get("nesterov")
+            if "nesterov" not in momentum_spec:
+                nesterov_options = [None]
+            else:
+                nesterov = momentum_spec["nesterov"]
+                if isinstance(nesterov, bool):
+                    nesterov_options = [nesterov]
+                elif (isinstance(nesterov, list) and nesterov
+                      and all(isinstance(value, bool) for value in nesterov)
+                      and len(set(nesterov)) == len(nesterov)):
+                    nesterov_options = nesterov
+                else:
+                    raise ValueError("nesterov must be a boolean or a nonempty list "
+                                     "of unique booleans")
             include_zero = momentum_spec.get("include_zero", False)
             if not isinstance(include_zero, bool):
                 raise ValueError("momentum include_zero must be a boolean")
@@ -179,28 +209,29 @@ def iter_search_configs(fixed: dict, search: dict) -> Iterator[dict]:
                 values = list(value_spec["values"])
             else:
                 values = list(iter_values(value_spec))
-            if include_zero:
-                values.insert(0, 0)
         else:
-            nesterov = None
+            nesterov_options = [None]
             values = momentum_spec
-        if nesterov is not None and not isinstance(nesterov, bool):
-            raise ValueError("nesterov must be a boolean")
-        if not values:
+        if not values and not (isinstance(momentum_spec, dict) and include_zero):
             raise ValueError("momentum values require a nonempty range or list")
         momenta = [float(_decimal(value, "momentum")) for value in values]
         if any(not 0 <= value < 1 for value in momenta) or len(set(momenta)) != len(momenta):
             raise ValueError("momentum values must be unique and in [0, 1)")
+        if isinstance(momentum_spec, dict) and include_zero and 0 not in momenta:
+            momenta.insert(0, 0)
         optim_base = {key: value for key, value in optimizer.items()
                       if key not in {"lr", "momentum"} and value is not None}
         optim_variants = []
         for momentum in momenta:
-            variant = dict(optim_base)
-            if momentum > 0:
+            if momentum == 0:
+                optim_variants.append(dict(optim_base))
+                continue
+            for nesterov in nesterov_options:
+                variant = dict(optim_base)
                 variant["momentum"] = momentum
                 if nesterov is not None:
                     variant["nesterov"] = nesterov
-            optim_variants.append(variant)
+                optim_variants.append(variant)
     else:
         optim_variants = [{key: value for key, value in optimizer.items()
                            if key != "lr" and value is not None}]
@@ -226,12 +257,11 @@ def iter_search_configs(fixed: dict, search: dict) -> Iterator[dict]:
         if include_none:
             regularizations.insert(0, None)
 
-    for depth in depths:
-        for units in product(*widths[:depth]):
-            for rate in rates:
-                for optim in optim_variants:
-                    for regularization in regularizations:
-                        layers = [{"units": unit, "act": hidden_act} for unit in units]
-                        layers.append({"units": output["units"], "act": output["activation"]})
-                        yield {**resolved_fixed, "arch": layers, "reg": regularization,
-                               "optim": {**optim, "lr": rate}}
+    for units in unit_combinations:
+        for rate in rates:
+            for optim in optim_variants:
+                for regularization in regularizations:
+                    layers = [{"units": unit, "act": hidden_act} for unit in units]
+                    layers.append({"units": output["units"], "act": output["activation"]})
+                    yield {**resolved_fixed, "arch": layers, "reg": regularization,
+                           "optim": {**optim, "lr": rate}}

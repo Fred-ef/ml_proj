@@ -1,39 +1,47 @@
 {
   "task": "cup",
   "mode": "select",
-  "tag": "cup-grid-coarse",
+  "tag": "cup-grid-coarse-full-glorot",
   "config": {
     "seed": null,
     "n_core": 16,
     "n_trials": 5,
-    "k": 5,
-    "plot_top": 10,
+    "k": 3,
+    "plot_top": 20,
     "scale":true,
     "fixed": {
       "init": "glorot",
       "loss": "mse",
-      "epochs": 5000,
+      "epochs": 2500,
       "batch_size": null,
       "scale": true,
-      "patience": 100,
-      "min_delta": 0.001,
-      "momentum": null,
-      "reg": null
+      "patience": 50,
+      "min_delta": 0.001
     },
-    "search": {
-      "hidden_layers": {"scale": "int", "start": 1, "stop": 4},
-      "hidden_units": [
-        {"scale": "log", "start": 32, "stop": 128, "factor": 2},
-        {"scale": "log", "start": 32, "stop": 128, "factor": 2},
-        {"scale": "log", "start": 32, "stop": 128, "factor": 2},
-        {"scale": "log", "start": 32, "stop": 128, "factor": 2}
+    "grid": {
+      "arch": [
+        [{"units": 64, "act": "sigmoid"}, {"units": 4, "act": "identity"}],
+        [{"units": 128, "act": "sigmoid"}, {"units": 4, "act": "identity"}],
+        [{"units": 128, "act": "sigmoid"}, {"units": 128, "act": "sigmoid"}, {"units": 4, "act": "identity"}],
+        [{"units": 128, "act": "sigmoid"}, {"units": 64, "act": "sigmoid"}, {"units": 4, "act": "identity"}],
+        [{"units": 64, "act": "sigmoid"}, {"units": 64, "act": "sigmoid"}, {"units": 64, "act": "sigmoid"}, {"units": 4, "act": "identity"}],
+        [{"units": 128, "act": "sigmoid"}, {"units": 128, "act": "sigmoid"}, {"units": 128, "act": "sigmoid"}, {"units": 4, "act": "identity"}]
       ],
-      "hidden_activation": "relu",
-      "output": {"units": 4, "activation": "identity"},
-      "optimizer": {
-        "type": "sgd",
-        "lr":[0.01, 0.1]
-      }
+      "optim": [
+        {"type": "sgd", "lr": 0.0001, "momentum": 0.0},
+        {"type": "sgd", "lr": 0.0001, "momentum": 0.8, "nesterov": true},
+        {"type": "sgd", "lr": 0.001, "momentum": 0.0},
+        {"type": "sgd", "lr": 0.001, "momentum": 0.8, "nesterov": true},
+        {"type": "sgd", "lr": 0.01, "momentum": 0.0},
+        {"type": "sgd", "lr": 0.01, "momentum": 0.8, "nesterov": true},
+        {"type": "sgd", "lr": 0.1, "momentum": 0.0},
+        {"type": "sgd", "lr": 0.1, "momentum": 0.8, "nesterov": true}
+      ],
+      "reg": [
+        null,
+        {"type": "l2", "lam": 0.0001},
+        {"type": "l2", "lam": 0.001}
+      ]
     }
   }
 }

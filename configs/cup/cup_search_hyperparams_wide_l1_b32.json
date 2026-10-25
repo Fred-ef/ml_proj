@@ -1,0 +1,36 @@
+{
+  "task": "cup",
+  "mode": "select",
+  "tag": "cup-search-hyperparams-wide-l1-b32",
+  "config": {
+    "seed": 42,
+    "n_core": 16,
+    "n_trials": 20,
+    "k": 3,
+    "plot_top": 10,
+    "fixed": {
+      "init": "he",
+      "loss": "mse",
+      "epochs": 2500,
+      "batch_size": null,
+      "scale": true,
+      "patience": 100,
+      "min_delta": 0.001
+    },
+    "search": {
+      "architectures": [[64,64]],
+      "hidden_activation": "relu",
+      "output": {"units": 4, "activation": "identity"},
+      "optimizer": {
+        "type": "sgd",
+        "lr": [0.009, 0.01, 0.011],
+        "momentum": {"values": [0, 0.75, 0.85, 0.88, 0.9], "nesterov": false}
+      },
+      "reg": {
+        "type": "l2",
+        "lam": {"scale": "log", "start": 0.0001, "stop": 0.01, "factor": 10},
+        "include_none": true
+      }
+    }
+  }
+}

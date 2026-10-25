@@ -5,21 +5,22 @@
   "config": {
     "seed": null,
     "n_core": 16,
-    "n_trials": 5,
+    "n_trials": 1,
     "k": 3,
     "plot_top": 30,
     "scale": null,
     "fixed": {
       "init": "glorot",
       "loss": "mse",
-      "epochs": 2000,
+      "epochs": 10000,
       "batch_size": null,
       "scale": true,
       "plot_top": 30,
       "patience": 50,
       "min_delta": 0.001,
-      "momentum": null,
-      "reg": null
+      "momentum": 0.85,
+      "nesterov": true,
+      "reg": { "type": "l2", "lam": 0.001}
     },
     "grid": {
       "arch": [
@@ -31,12 +32,13 @@
         [{"units": 64, "act": "relu"}, {"units": 64, "act": "relu"}, {"units": 4, "act": "identity"}],
         [{"units": 128, "act": "relu"}, {"units": 64, "act": "relu"}, {"units": 4, "act": "identity"}],
         [{"units": 64, "act": "relu"}, {"units": 32, "act": "relu"}, {"units": 16, "act": "relu"}, {"units": 4, "act": "identity"}],
-        [{"units": 128, "act": "relu"}, {"units": 64, "act": "relu"}, {"units": 32, "act": "relu"}, {"units": 4, "act": "identity"}],
-        [{"units": 128, "act": "relu"}, {"units": 64, "act": "relu"}, {"units": 32, "act": "relu"}, {"units": 16, "act": "relu"}, {"units": 4, "act": "identity"}]
+        [{"units": 128, "act": "relu"}, {"units": 64, "act": "relu"}, {"units": 32, "act": "relu"}, {"units": 4, "act": "identity"}]
       ],
       "optim": [
-        {"type": "sgd", "lr": 0.01},
-        {"type": "sgd", "lr": 0.1}
+        {"type": "sgd", "lr": 0.006},
+        {"type": "sgd", "lr": 0.004},
+        {"type": "sgd", "lr": 0.002},
+        {"type": "sgd", "lr": 0.001}
       ]
     }
   }

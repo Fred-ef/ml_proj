@@ -1,0 +1,35 @@
+{
+  "task": "cup",
+  "mode": "select",
+  "tag": "cup-search-hyperparams-wide-l1-b15",
+  "config": {
+    "seed": 42,
+    "n_core": 16,
+    "n_trials": 1,
+    "val_fraction": 0.2,
+    "plot_top": 10,
+    "fixed": {
+      "init": "glorot",
+      "loss": "mse",
+      "epochs": 500,
+      "batch_size": 15,
+      "scale": true,
+      "patience": 25,
+      "min_delta": 0.001
+    },
+    "search": {
+      "architectures": [[64, 32], [32, 16, 4], [128, 64, 32]],
+      "hidden_activation": "tanh",
+      "output": {"units": 4, "activation": "identity"},
+      "optimizer": {
+        "type": "sgd",
+        "lr": [0.0001, 0.001, 0.01],
+        "momentum": {"values": [0, 0.5, 0.9], "nesterov": false}
+      },
+      "reg": {
+        "type": "l1",
+        "lam": {"scale": "log", "start": 0.0001, "stop": 0.01, "factor": 10}
+      }
+    }
+  }
+}

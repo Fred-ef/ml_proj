@@ -172,6 +172,10 @@ In its `search` section, `scale: "int"` visits every integer from `start` to
 or divides by `factor` (10 by default) until the next value would pass `stop`.
 For `hidden_layers` and `hidden_units`, a logarithmic sequence must contain only
 integers: for example, `start: 1`, `stop: 8`, `factor: 2` gives `1, 2, 4, 8`.
+To choose specific layer widths without generating every combination, use
+`architectures` instead of `hidden_layers` and `hidden_units`, for example
+`"architectures": [[128, 64], [64, 64, 64]]`. Each list contains the hidden
+units of one architecture; `hidden_activation` and `output` apply to all of them.
 Use either `search` or the older explicit `grid` section. The runner reads one
 input file and records each evaluated configuration in the saved summary.
 

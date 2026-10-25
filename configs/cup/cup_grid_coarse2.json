@@ -1,48 +1,34 @@
-
 {
   "task": "cup",
   "mode": "select",
-  "tag": "cup-grid-coarse",
+  "tag": "cup-grid-coarse-full-glorot",
   "config": {
     "seed": null,
     "n_core": 16,
     "n_trials": 5,
     "k": 3,
-    "plot_top": 30,
-    "scale": null,
+    "plot_top": 20,
+    "scale": true,
     "fixed": {
       "init": "glorot",
       "loss": "mse",
-      "epochs": 500,
+      "epochs": 2500,
       "batch_size": null,
       "scale": true,
-      "plot_top": 30,
       "patience": 50,
-      "min_delta": 0.01,
-      "momentum": null,
-      "reg": null
+      "min_delta": 0.001
     },
     "search": {
-      "hidden_layers": {
-        "scale": "int",
-        "start": 2,
-        "stop": 4
-      },
-      "hidden_units": [
-        {"scale": "log", "start": 32, "stop": 128, "factor": 2},
-        {"scale": "log", "start": 32, "stop": 128, "factor": 2},
-        {"scale": "log", "start": 32, "stop": 128, "factor": 2},
-        {"scale": "log", "start": 32, "stop": 128, "factor": 2}
+      "architectures": [
+        [128, 64],
+        [128, 128],
+        [64, 64, 64],
+        [128, 64, 32],
+        [128, 128, 128]
       ],
-      "hidden_activation": "relu",
-      "output": {
-        "units": 4,
-        "activation": "identity"
-      },
-      "optimizer": {
-        "type": "sgd",
-        "lr": [0.005, 0.05]
-      }
+      "hidden_activation": "sigmoid",
+      "output": {"units": 4, "activation": "identity"},
+      "optimizer": {"type": "sgd", "lr": [0.0001, 0.001, 0.01, 0.1]}
     }
   }
 }
