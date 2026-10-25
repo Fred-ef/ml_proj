@@ -47,6 +47,9 @@ def parallel_map(func: Callable, arg_tuples: Sequence[tuple], n_core: int | None
 
     NOTE: With n_core == 1 the work runs in-process with no pool
 
+    NOTE: on the first error the tasks not yet started are cancelled; the error
+    is raised as soon as the ones already running finish
+
     func and everything in arg_tuples must be picklable
     (module-level functions, plain data, numpy arrays)
     """
@@ -69,10 +72,16 @@ def parallel_map(func: Callable, arg_tuples: Sequence[tuple], n_core: int | None
     results, done = [], 0
     with ProcessPoolExecutor(max_workers=workers, mp_context=ctx) as pool:
         futures = [pool.submit(func, *args) for args in arg_tuples]
-        for fut in as_completed(futures):     # finish order
-            result = fut.result()
-            done += 1
-            results.append(result)
-            if on_result:
-                on_result(done, result)
+        try:
+            for fut in as_completed(futures):     # finish order
+                result = fut.result()
+                done += 1
+                results.append(result)
+                if on_result:
+                    on_result(done, result)
+        except BaseException:
+            # Leaving the with-block waits for EVERY submitted task: on an error
+            # (or Ctrl+C) cancel the queued ones, so only the running ones are awaited.
+            pool.shutdown(wait=True, cancel_futures=True)
+            raise
     return results

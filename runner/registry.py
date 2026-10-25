@@ -113,34 +113,41 @@ def _select(payload: dict, data: tuple, profile: TaskProfile):
                          val_fraction=payload.get("val_fraction"),
                          n_trials=n_trials, stratify=payload.get("stratify", False))
     results = search["ranking"]
-    mean_key, std_key = f"val_{metric}_mean", f"val_{metric}_std"
-    train_mean_key, train_std_key = f"train_{metric}_mean", f"train_{metric}_std"
     summary = {
         "metric": metric,
         "validation_mode": "kfold" if payload.get("k") is not None else "holdout",
         "n_configs": len(results),
         "n_trials": n_trials,
         "seed_plan": search["seed_plan"],
-        "ranking": [
-            {"train_error": r["train_error"], "val_error": r["val_error"],
-             "train_mean": r[train_mean_key], "train_std": r[train_std_key],
-             "val_mean": r[mean_key], "val_std": r[std_key],
-             "val_data_loss": r["val_data_loss"],
-             "best_epoch_median": r["best_epoch_median"],
-             "best_epochs": r["best_epochs"],
-             "epochs_run": r["epochs_run"],
-             "n_trials": r["n_trials"],
-             "train_init_var": r[f"train_{metric}_init_var"],
-             "train_init_std": r[f"train_{metric}_init_std"],
-             "val_init_var": r[f"val_{metric}_init_var"],
-             "val_init_std": r[f"val_{metric}_init_std"],
-             "per_trial_val": r[f"per_trial_val_{metric}"],
-             "config": r["config"]}
-            for r in results
-        ],
-        "curves": [r["curves"] for r in results],
+        "ranking": [_ranking_row(r, metric) for r in results],
+        # A diverged configuration has no curves: an empty entry keeps the ranks aligned.
+        "curves": [r.get("curves", {}) for r in results],
     }
     return summary, None
+
+
+def _ranking_row(r: dict, metric: str) -> dict:
+    """One summary.json row. A diverged configuration keeps its place and the
+    point where it diverged, with every score set to None (null in JSON)."""
+    sources = {
+        "train_error": "train_error", "val_error": "val_error",
+        "train_mean": f"train_{metric}_mean", "train_std": f"train_{metric}_std",
+        "val_mean": f"val_{metric}_mean", "val_std": f"val_{metric}_std",
+        "val_data_loss": "val_data_loss",
+        "best_epoch_median": "best_epoch_median",
+        "best_epochs": "best_epochs",
+        "epochs_run": "epochs_run",
+        "n_trials": "n_trials",
+        "train_init_var": f"train_{metric}_init_var",
+        "train_init_std": f"train_{metric}_init_std",
+        "val_init_var": f"val_{metric}_init_var",
+        "val_init_std": f"val_{metric}_init_std",
+        "per_trial_val": f"per_trial_val_{metric}",
+    }
+    diverged = r.get("diverged")
+    row = {name: None if diverged else r[key] for name, key in sources.items()}
+    row["n_trials"] = r["n_trials"]
+    return {**row, "diverged": diverged, "config": r["config"]}
 
 
 def _assess(payload: dict, data: tuple, profile: TaskProfile):

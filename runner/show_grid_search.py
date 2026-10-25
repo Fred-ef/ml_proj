@@ -160,6 +160,13 @@ def _runs_label(row: dict, validation_mode: str) -> str:
     return "nei trial" if trials else ""
 
 
+def _diverged_label(row: dict) -> str:
+    """Where a diverged configuration was stopped (trials counted from 1)."""
+    point = row["diverged"]
+    return (f"DIVERGENTE (inizializzazione {point['trial'] + 1} di {row['n_trials']}, "
+            f"epoca {point['epoch']})")
+
+
 def _ranking_table(ranking: list[dict], limit: int | None) -> list[str]:
     """One line per configuration: mean error +- std across initializations."""
     if not ranking or "n_trials" not in ranking[0]:
@@ -178,6 +185,9 @@ def _ranking_table(ranking: list[dict], limit: int | None) -> list[str]:
              f"  {'#':>3}  {'Validation':<24} {'Training':<24} {'Epoca':>6}"
              + (f"  {'Loss val':>10}" if with_loss else "")]
     for rank, row in enumerate(rows, start=1):
+        if row.get("diverged"):
+            lines.append(f"  {rank:>3}  {_diverged_label(row)}")
+            continue
         lines.append(f"  {rank:>3}  {cell(row['val_error'], row['val_init_std']):<24} "
                      f"{cell(row['train_error'], row['train_init_std']):<24} "
                      f"{row['best_epoch_median']:>6}"
@@ -237,6 +247,36 @@ def _epoch_fields(row: dict, validation_mode: str) -> list[tuple[str, str]]:
     return fields
 
 
+def _result_fields(row: dict, metric: str, metric_label: str,
+                   validation_mode: str) -> list[tuple[str, str]]:
+    """Scores of one configuration; a diverged one has none, only where it stopped."""
+    if row.get("diverged"):
+        return [("Esito", _diverged_label(row))]
+    error_suffix = " (MEE media)" if metric == "mee" else ""
+    results = [
+        (f"Errore training{error_suffix}", _number(row["train_error"])),
+        (f"Errore validation{error_suffix}", _number(row["val_error"])),
+    ]
+    if metric == "acc":
+        results.extend((("Accuratezza training", _number(row["train_mean"])),
+                        ("Accuratezza validation", _number(row["val_mean"]))))
+    elif metric not in ("mee", "loss"):
+        results.extend(((f"{metric_label} training", _number(row["train_mean"])),
+                        (f"{metric_label} validation", _number(row["val_mean"]))))
+    if "val_data_loss" in row:
+        units = "MSE, target standardizzati" if row["config"].get("scale") else "MSE"
+        results.append((f"Loss validation all'epoca scelta ({units})",
+                        _number(row["val_data_loss"])))
+    for name, label in (("train_std", "training"), ("val_std", "validation")):
+        std = row[name]
+        if std is not None:
+            results.append((f"Deviazione standard {metric_label} {label} (tra fold)",
+                            _number(std)))
+    results.extend(_init_fields(row, metric_label))
+    results.extend(_epoch_fields(row, validation_mode))
+    return results
+
+
 def format_select_summary(summary: dict, run_config: dict | None = None,
                           limit: int | None = 20) -> str:
     """Show shared settings and the first ranked configurations."""
@@ -249,6 +289,9 @@ def format_select_summary(summary: dict, run_config: dict | None = None,
     # summaries; with metric "loss" the two criteria coincide).
     if metric != "loss" and all("val_data_loss" in row for row in summary["ranking"]):
         order += "; a parità, loss di validation crescente"
+    n_diverged = sum(1 for row in summary["ranking"] if row.get("diverged"))
+    if n_diverged:
+        order += "; divergenti in fondo"
     task = f"{run_config['task'].upper()}  |  " if run_config and "task" in run_config else ""
     lines = [
         "RISULTATI GRID SEARCH",
@@ -259,6 +302,13 @@ def format_select_summary(summary: dict, run_config: dict | None = None,
 
     ranking = summary["ranking"]
     lines.extend(_ranking_table(ranking, limit))
+    if n_diverged:
+        lines.extend((
+            "",
+            f"CONFIGURAZIONI DIVERGENTI: {n_diverged} di {len(ranking)}",
+            "  In almeno un run la loss o la metrica è diventata infinita (o NaN): la",
+            "  configurazione è scartata, senza punteggi, ed è in fondo alla classifica.",
+        ))
     if any("epochs_run" not in row for row in ranking):
         lines.extend((
             "",
@@ -295,29 +345,8 @@ def format_select_summary(summary: dict, run_config: dict | None = None,
     for rank, row in enumerate(shown, start=1):
         lines.extend(("", "-" * 72, f"CONFIGURAZIONE {rank}/{summary['n_configs']}",
                       "  Risultati:"))
-        error_suffix = " (MEE media)" if metric == "mee" else ""
-        results = [
-            (f"Errore training{error_suffix}", _number(row["train_error"])),
-            (f"Errore validation{error_suffix}", _number(row["val_error"])),
-        ]
-        if metric == "acc":
-            results.extend((("Accuratezza training", _number(row["train_mean"])),
-                            ("Accuratezza validation", _number(row["val_mean"]))))
-        elif metric not in ("mee", "loss"):
-            results.extend(((f"{metric_label} training", _number(row["train_mean"])),
-                            (f"{metric_label} validation", _number(row["val_mean"]))))
-        if "val_data_loss" in row:
-            units = "MSE, target standardizzati" if row["config"].get("scale") else "MSE"
-            results.append((f"Loss validation all'epoca scelta ({units})",
-                            _number(row["val_data_loss"])))
-        for name, label in (("train_std", "training"), ("val_std", "validation")):
-            std = row[name]
-            if std is not None:
-                results.append((f"Deviazione standard {metric_label} {label} (tra fold)",
-                                _number(std)))
-        results.extend(_init_fields(row, metric_label))
-        results.extend(_epoch_fields(row, summary["validation_mode"]))
-        _append_fields(lines, results, "    ")
+        _append_fields(lines, _result_fields(row, metric, metric_label,
+                                             summary["validation_mode"]), "    ")
         lines.append("  Iperparametri specifici:")
         specific = [(field.label, field.display) for field in described[rank - 1]
                     if field.key not in common_keys]

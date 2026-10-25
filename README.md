@@ -140,7 +140,11 @@ many times with different weight initializations (and batch order) on the same
 validation split. The ranking uses the mean over the trials. Configurations
 with the same mean validation score (for example several at 100% accuracy on
 MONK) are ordered by their mean validation loss at the selected epoch: the MSE
-on the data, without the regularization penalty. For each
+on the data, without the regularization penalty. A configuration whose training
+diverges in any run (a loss or metric becomes infinite or NaN, typically because
+the learning rate is too large) is stopped at that run and not scored: it is
+placed at the end of the ranking, marked `diverged` in `summary.json` with the
+trial and epoch where it happened, and has no curves. For each
 configuration the report adds the variance and standard deviation across
 initializations, and the validation score of each trial. This is different from
 the standard deviation across folds in k-fold validation, which measures how

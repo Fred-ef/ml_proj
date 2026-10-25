@@ -18,6 +18,17 @@ from ..model_selection.early_stopping import EarlyStopping
 from ..utils.seeding import derive_seed, resolve_seed
 
 
+class DivergenceError(ArithmeticError):
+    """Training diverged: an epoch produced a non-finite loss or metric (inf/NaN)."""
+
+    def __init__(self, epoch: int) -> None:
+        super().__init__(epoch)     # args = (epoch,): the error survives pickling
+        self.epoch = epoch          # one-based, like EarlyStopping.best_epoch
+
+    def __str__(self) -> str:
+        return f"training diverged at epoch {self.epoch}: non-finite loss or metric"
+
+
 class Network:
     def __init__(
         self,

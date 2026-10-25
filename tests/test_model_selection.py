@@ -8,6 +8,9 @@
 Run from the project root: pytest tests/test_model_selection.py -v
 """
 
+import time
+from pathlib import Path
+
 import numpy as np
 import pytest
 
@@ -449,6 +452,26 @@ def test_grid_search_holdout_parallel_matches_sequential():
                 (r["config"], r["train_error"], r["val_error"])
                 for r in par["ranking"]]
     assert "aggregate" not in seq and "aggregate" not in par
+
+
+def _fail_first_task(i, folder):
+    """Worker for the cancellation test: task 0 fails at once, the others take a
+    while and leave a file behind to show they ran (module level: picklable)."""
+    if i == 0:
+        raise ValueError("task 0 failed")
+    time.sleep(0.2)
+    (Path(folder) / str(i)).touch()
+    return i
+
+
+def test_parallel_map_cancels_queued_tasks_after_an_error(tmp_path):
+    """An error must not wait for the whole queue: the tasks not yet started are
+    cancelled, so only the few already handed to a worker still run."""
+    from src.utils.parallel import parallel_map
+    tasks = [(i, str(tmp_path)) for i in range(20)]
+    with pytest.raises(ValueError, match="task 0 failed"):
+        parallel_map(_fail_first_task, tasks, n_core=2)
+    assert len(list(tmp_path.iterdir())) < 10       # without cancelling: all 19
 
 
 @pytest.mark.parametrize("metric,expected_train,expected_val", [
