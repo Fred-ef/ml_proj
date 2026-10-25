@@ -1,0 +1,32 @@
+{
+    "task": "monk3",
+    "mode": "assess",
+    "tag": "monk3-assess-batch-1",
+    "config": {
+        "init": "glorot",
+        "init_kwargs": null,
+        "loss": "mse",
+        "epochs": 300,
+        "batch_size": null,
+        "scale": null,
+        "reg": null,
+        "patience": null,
+        "n_inputs": 17,
+        "arch": [
+            {
+                "units": 4,
+                "act": "tanh"
+            },
+            {
+                "units": 1,
+                "act": "sigmoid"
+            }
+        ],
+        "optim": {
+            "type": "sgd",
+            "lr": 0.5
+        },
+        "seed": null,
+        "n_trials": 50
+    }
+}

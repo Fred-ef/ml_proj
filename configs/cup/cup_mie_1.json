@@ -1,0 +1,150 @@
+{
+    "task": "cup",
+    "mode": "select",
+    "tag": "cup-grid-coarse-full-tanh",
+    "config": {
+        "seed": null,
+        "n_core": 16,
+        "n_trials": 5,
+        "k": 5,
+        "plot_top": 20,
+        "scale": true,
+        "fixed": {
+            "init": "glorot",
+            "loss": "mse",
+            "epochs": 2500,
+            "batch_size": null,
+            "scale": true,
+            "patience": 50,
+            "min_delta": 0.001
+        },
+        "grid": {
+            "arch": [
+                [
+                    {
+                        "units": 32,
+                        "act": "tanh"
+                    },
+                    {
+                        "units": 4,
+                        "act": "identity"
+                    }
+                ],
+                [
+                    {
+                        "units": 64,
+                        "act": "tanh"
+                    },
+                    {
+                        "units": 4,
+                        "act": "identity"
+                    }
+                ],
+                [
+                    {
+                        "units": 128,
+                        "act": "tanh"
+                    },
+                    {
+                        "units": 4,
+                        "act": "identity"
+                    }
+                ],
+                [
+                    {
+                        "units": 32,
+                        "act": "tanh"
+                    },
+                    {
+                        "units": 32,
+                        "act": "tanh"
+                    },
+                    {
+                        "units": 4,
+                        "act": "identity"
+                    }
+                ],
+                [
+                    {
+                        "units": 64,
+                        "act": "tanh"
+                    },
+                    {
+                        "units": 32,
+                        "act": "tanh"
+                    },
+                    {
+                        "units": 4,
+                        "act": "identity"
+                    }
+                ],
+                [
+                    {
+                        "units": 64,
+                        "act": "tanh"
+                    },
+                    {
+                        "units": 64,
+                        "act": "tanh"
+                    },
+                    {
+                        "units": 4,
+                        "act": "identity"
+                    }
+                ],
+                [
+                    {
+                        "units": 64,
+                        "act": "tanh"
+                    },
+                    {
+                        "units": 64,
+                        "act": "tanh"
+                    },
+                    {
+                        "units": 32,
+                        "act": "tanh"
+                    },
+                    {
+                        "units": 4,
+                        "act": "identity"
+                    }
+                ]
+            ],
+            "optim": [
+                {
+                    "type": "sgd",
+                    "lr": 0.0001
+                },
+                {
+                    "type": "sgd",
+                    "lr": 0.0005
+                },
+                {
+                    "type": "sgd",
+                    "lr": 0.001
+                },
+                {
+                    "type": "sgd",
+                    "lr": 0.005
+                },
+                {
+                    "type": "sgd",
+                    "lr": 0.01
+                },
+                {
+                    "type": "sgd",
+                    "lr": 0.05
+                },
+                {
+                    "type": "sgd",
+                    "lr": 0.1
+                },
+                {
+                    "type": "sgd",
+                    "lr": 0.5
+                }
+            ]
+        }
+    }
+}
