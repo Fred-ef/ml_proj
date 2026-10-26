@@ -53,9 +53,7 @@
           "stop": 0.01,
           "factor": 10
         },
-        "momentum": null,
-        "epsilon": null,
-        "mu": null
+        "momentum": null
       }
     }
   }

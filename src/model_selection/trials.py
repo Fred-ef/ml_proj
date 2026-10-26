@@ -2,7 +2,7 @@
 
 Trains one configuration on ``n_trials`` different seeds and aggregates the
 scores (mean/std) so results are reported over trials rather than from a single
-lucky/unlucky run. Used by both the CLI/API runner (train and assess modes) and
+lucky/unlucky run. Used by the CLI runner (train and assess modes) and
 kept independent of any single experiment.
 
 The score to aggregate is injected as ``score_fn``/``score_name`` (accuracy for

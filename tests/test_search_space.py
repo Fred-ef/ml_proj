@@ -49,7 +49,7 @@ def test_null_options_are_disabled_and_can_be_enabled():
     ]
     search["optimizer"].update({
         "lr": {"scale": "log", "start": 0.1, "stop": 0.01, "factor": 10},
-        "momentum": None, "epsilon": None, "mu": None,
+        "momentum": None,
     })
     configs = list(iter_search_configs(fixed, search))
 
@@ -74,13 +74,6 @@ def test_null_options_are_disabled_and_can_be_enabled():
     assert enabled_model.regularizer.lam == 0.01
     assert enabled_model.optimizer.momentum == 0.9
     assert enabled_model.optimizer.nesterov is True
-
-    for kind, setting, default in (("adagrad", "epsilon", 1e-8),
-                                   ("quickprop", "mu", 1.75)):
-        alternative = {**search,
-                       "optimizer": {**search["optimizer"], "type": kind}}
-        config = next(iter_search_configs(fixed, alternative))
-        assert getattr(build_model(config).optimizer, setting) == default
 
 
 def test_iter_values_includes_integer_bounds_and_descending_log_bounds():

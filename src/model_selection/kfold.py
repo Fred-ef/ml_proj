@@ -1,4 +1,4 @@
-"""K-fold cross-validation (and simple hold-out).
+"""K-fold cross-validation.
 
 Estimates validation MEE/MSE for each hyperparameter configuration during model
 selection. Returns per-fold metrics so we can report mean +/- std.

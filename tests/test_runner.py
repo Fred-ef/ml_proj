@@ -224,7 +224,7 @@ def test_run_experiment_select_with_trials_saves_spread_and_curves(tmp_path, val
         # Sanity check: a tiny net starts by answering about 0.5, so the first MSE is about 0.5**2.
         assert entry["loss"]["train"]["mean"][0] == pytest.approx(0.25, abs=0.05)
 
-    # Plots: the first plot_top configurations, the comparison and the copy shown by the API.
+    # Plots: the first plot_top configurations, the comparison and the copy of the best one.
     assert {p.name for p in (run_dir / "curves").iterdir()} == {
         "rank01.png", "rank02.png", "top_val.png"}
     assert ((run_dir / "learning_curve.png").read_bytes()

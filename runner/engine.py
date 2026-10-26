@@ -87,27 +87,23 @@ def _loss_label(config: dict) -> str:
 def _plot_grid_curves(run_dir: Path, task: str, metric: str, ranking: list[dict],
                       curves: list[dict], top: int) -> None:
     """Band plot for each of the first `top` configurations, plus a comparison."""
-    # Diverged configurations come last in the ranking and have no curves.
-    plotted = [(row, entry) for row, entry in zip(ranking, curves)
-               if row.get("diverged") is None]
-    shown = min(top, len(plotted))
+    shown = min(top, len(ranking))
     if shown == 0:
         return
     plots = run_dir / "curves"
     plots.mkdir(exist_ok=True)
-    for rank, (row, entry) in enumerate(plotted[:shown], start=1):
+    for rank, (row, entry) in enumerate(zip(ranking[:shown], curves[:shown]), start=1):
         stopped = row["config"].get("patience") is not None
         plot_loss_and_metric(entry, metric, save_path=str(plots / f"rank{rank:02d}.png"),
                              title=(f"{task} — configurazione {rank}/{len(ranking)} "
                                     f"(media su {row.get('n_trials', 1)} init)"),
                              stop_epoch=row["best_epoch_median"] if stopped else None,
                              loss_label=_loss_label(row["config"]))
-    plot_val_loss_and_metric([entry for _, entry in plotted[:shown]],
-                             [f"configurazione {r}" for r in range(1, shown + 1)],
+    plot_val_loss_and_metric(curves[:shown], [f"configurazione {r}" for r in range(1, shown + 1)],
                              f"val {metric}", save_path=str(plots / "top_val.png"),
                              title=f"{task} — validation media delle prime {shown}",
                              loss_label=f"val {_loss_label(ranking[0]['config'])}")
-    # The API/GUI shows learning_curve.png: for a grid, the best configuration's.
+    # learning_curve.png: for a grid, a copy of the best configuration's plot.
     shutil.copyfile(plots / "rank01.png", run_dir / "learning_curve.png")
 
 

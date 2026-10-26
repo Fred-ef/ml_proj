@@ -126,12 +126,6 @@ def append_index(index_jsonl: str | Path, row: dict) -> None:
         f.write(json.dumps(row, default=_json_default) + "\n")
 
 
-def load_index(index_jsonl: str | Path):
-    """Read the index into a pandas DataFrame for analysis"""
-    import pandas as pd
-    return pd.read_json(index_jsonl, lines=True)
-
-
 def index_to_csv(index_jsonl: str | Path, csv_path: str | Path | None = None):
     """Regenerates an index.csv from the .jsonl"""
     import pandas as pd
@@ -140,25 +134,3 @@ def index_to_csv(index_jsonl: str | Path, csv_path: str | Path | None = None):
         csv_path = Path(index_jsonl).with_suffix(".csv")
     df.to_csv(csv_path, index=False)
     return df
-
-
-# ------------------------------------------------------- model introspection (Tier 3)
-def describe_network(net) -> dict:
-    """Serializable description of an already-built Network"""
-    def name_of(o):
-        return getattr(o, "name", type(o).__name__)
-
-    opt = net.optimizer
-    return {
-        "layers": [
-            {"n_in": L.n_in, "n_out": L.n_out,
-             "act": name_of(L.activation), "init": type(L.initializer).__name__}
-            for L in net.layers
-        ],
-        "loss": name_of(net.loss),
-        "optimizer": {"type": type(opt).__name__,
-                      **{k: getattr(opt, k) for k in ("lr", "momentum", "nesterov")
-                         if hasattr(opt, k)}},
-        "regularizer": (None if net.regularizer is None
-                        else {"type": type(net.regularizer).__name__, "lam": net.regularizer.lam}),
-    }

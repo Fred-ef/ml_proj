@@ -6,7 +6,6 @@ import numpy as np
 import pytest
 
 from runner.engine import run_experiment
-from service.schemas import JobRequest
 from src.model_selection import grid_search as grid_module
 from src.model_selection import trials as trials_module
 from src.model_selection.build import build_model
@@ -129,24 +128,6 @@ def test_stratify_rejects_kfold_regression_and_assessment():
         trials_module.run_trials({**config, "stratify": True}, X, y, X, y,
                                  metrics={"acc": accuracy}, score_fn=accuracy,
                                  score_name="acc", stage="assess")
-
-
-def test_service_payload_accepts_stratified_holdout_and_rejects_other_modes():
-    base = {"arch": [{"units": 1, "act": "sigmoid"}],
-            "optim": {"type": "sgd", "lr": 0.1}, "epochs": 1}
-    train = JobRequest(task="monk1", mode="train",
-                       config={**base, "stratify": True}).payload()
-    select = JobRequest(task="monk1", mode="select",
-                        select={"stratify": True}).payload()
-    assert train["stratify"] is True and select["stratify"] is True
-
-    with pytest.raises(ValueError, match="only to holdout"):
-        JobRequest(task="monk1", mode="select", select={"k": 2, "stratify": True})
-    with pytest.raises(ValueError, match="classification"):
-        JobRequest(task="cup", mode="select", select={"stratify": True})
-    with pytest.raises(ValueError):
-        JobRequest(task="monk1", mode="assess",
-                   assess={**base, "stratify": True})
 
 
 def test_runner_select_records_stratified_holdout(tmp_path):

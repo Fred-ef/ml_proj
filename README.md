@@ -140,11 +140,7 @@ many times with different weight initializations (and batch order) on the same
 validation split. The ranking uses the mean over the trials. Configurations
 with the same mean validation score (for example several at 100% accuracy on
 MONK) are ordered by their mean validation loss at the selected epoch: the MSE
-on the data, without the regularization penalty. A configuration whose training
-diverges in any run (a loss or metric becomes infinite or NaN, typically because
-the learning rate is too large) is stopped at that run and not scored: it is
-placed at the end of the ranking, marked `diverged` in `summary.json` with the
-trial and epoch where it happened, and has no curves. For each
+on the data, without the regularization penalty. For each
 configuration the report adds the variance and standard deviation across
 initializations, and the validation score of each trial. This is different from
 the standard deviation across folds in k-fold validation, which measures how
@@ -164,8 +160,7 @@ The run directory also contains:
   marks the epochs where the mean is taken over fewer runs;
 - `curves/top_val.png`: the mean validation curves of those configurations together
   (loss on the left, selection metric on the right);
-- `learning_curve.png`: a copy of the plot of the best configuration, which is the
-  one the API and the web console show.
+- `learning_curve.png`: a copy of the plot of the best configuration.
 
 In its `search` section, `scale: "int"` visits every integer from `start` to
 `stop`, including both endpoints. `scale: "log"` starts at `start` and multiplies
@@ -178,23 +173,6 @@ To choose specific layer widths without generating every combination, use
 units of one architecture; `hidden_activation` and `output` apply to all of them.
 Use either `search` or the older explicit `grid` section. The runner reads one
 input file and records each evaluated configuration in the saved summary.
-
-## Experiment service + web console
-
-Besides the CLI entry points above, `service/` exposes the same runner through
-an HTTP API (FastAPI) plus an optional web console (NiceGUI) mounted on the
-same app — pure `pip install`, no separate frontend build.
-
-```bash
-pip install -r requirements-dev.txt
-uvicorn service.gui:app --reload --port 8000
-# open http://127.0.0.1:8000/gui  — submit train/select/assess jobs, watch them
-# run, browse past results (summary tables + learning curves)
-```
-
-API only, no console: `uvicorn service.app:app` (`http://127.0.0.1:8000/docs`
-still serves the raw OpenAPI UI, unaffected). See `service/app.py` (routes),
-`service/schemas.py` (request validation) and `service/gui.py` (the console).
 
 ## Status
 

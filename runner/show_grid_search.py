@@ -103,7 +103,7 @@ def _configuration_fields(config: dict) -> list[_ConfigField]:
         fields.append(_ConfigField("optim.type", "Ottimizzatore",
                                    str(optim.get("type", "?")).upper(), optim.get("type")))
         opt_labels = {"lr": "Learning rate", "momentum": "Momentum",
-                      "nesterov": "Nesterov", "epsilon": "Epsilon", "mu": "Mu"}
+                      "nesterov": "Nesterov"}
         fields.extend(_ConfigField(f"optim.{key}",
                                    opt_labels.get(key, key.replace("_", " ").capitalize()),
                                    _value(value), value)
@@ -160,13 +160,6 @@ def _runs_label(row: dict, validation_mode: str) -> str:
     return "nei trial" if trials else ""
 
 
-def _diverged_label(row: dict) -> str:
-    """Where a diverged configuration was stopped (trials counted from 1)."""
-    point = row["diverged"]
-    return (f"DIVERGENTE (inizializzazione {point['trial'] + 1} di {row['n_trials']}, "
-            f"epoca {point['epoch']})")
-
-
 def _ranking_table(ranking: list[dict], limit: int | None) -> list[str]:
     """One line per configuration: mean error +- std across initializations."""
     if not ranking or "n_trials" not in ranking[0]:
@@ -185,9 +178,6 @@ def _ranking_table(ranking: list[dict], limit: int | None) -> list[str]:
              f"  {'#':>3}  {'Validation':<24} {'Training':<24} {'Epoca':>6}"
              + (f"  {'Loss val':>10}" if with_loss else "")]
     for rank, row in enumerate(rows, start=1):
-        if row.get("diverged"):
-            lines.append(f"  {rank:>3}  {_diverged_label(row)}")
-            continue
         lines.append(f"  {rank:>3}  {cell(row['val_error'], row['val_init_std']):<24} "
                      f"{cell(row['train_error'], row['train_init_std']):<24} "
                      f"{row['best_epoch_median']:>6}"
@@ -249,9 +239,7 @@ def _epoch_fields(row: dict, validation_mode: str) -> list[tuple[str, str]]:
 
 def _result_fields(row: dict, metric: str, metric_label: str,
                    validation_mode: str) -> list[tuple[str, str]]:
-    """Scores of one configuration; a diverged one has none, only where it stopped."""
-    if row.get("diverged"):
-        return [("Esito", _diverged_label(row))]
+    """Scores of one configuration."""
     error_suffix = " (MEE media)" if metric == "mee" else ""
     results = [
         (f"Errore training{error_suffix}", _number(row["train_error"])),
@@ -289,9 +277,6 @@ def format_select_summary(summary: dict, run_config: dict | None = None,
     # summaries; with metric "loss" the two criteria coincide).
     if metric != "loss" and all("val_data_loss" in row for row in summary["ranking"]):
         order += "; a parità, loss di validation crescente"
-    n_diverged = sum(1 for row in summary["ranking"] if row.get("diverged"))
-    if n_diverged:
-        order += "; divergenti in fondo"
     task = f"{run_config['task'].upper()}  |  " if run_config and "task" in run_config else ""
     lines = [
         "RISULTATI GRID SEARCH",
@@ -302,13 +287,6 @@ def format_select_summary(summary: dict, run_config: dict | None = None,
 
     ranking = summary["ranking"]
     lines.extend(_ranking_table(ranking, limit))
-    if n_diverged:
-        lines.extend((
-            "",
-            f"CONFIGURAZIONI DIVERGENTI: {n_diverged} di {len(ranking)}",
-            "  In almeno un run la loss o la metrica è diventata infinita (o NaN): la",
-            "  configurazione è scartata, senza punteggi, ed è in fondo alla classifica.",
-        ))
     if any("epochs_run" not in row for row in ranking):
         lines.extend((
             "",

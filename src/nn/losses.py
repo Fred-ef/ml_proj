@@ -35,9 +35,3 @@ class MSE(Loss):
     def gradient(self, y_pred: np.ndarray, y_true: np.ndarray) -> np.ndarray:
         # Derivative of the per-sample mean used in value().
         return 2.0 * (y_pred - y_true) / y_pred.shape[0]
-
-
-class CrossEntropy(Loss):
-    """Binary cross-entropy (optional: MONK classification, LMS vs CE comparison)."""
-
-    name = "cross_entropy"

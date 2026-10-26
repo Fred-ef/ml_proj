@@ -1,8 +1,8 @@
-"""CLI: runs an experiment from a JSON/YAML config file.
+"""CLI: runs an experiment from a JSON config file.
 
 Usage:
-    python -m runner --config configs/monk1_baseline.json
-    python -m runner --config configs/monk1_baseline.json --tag lr03-try
+    python -m runner --config configs/monk1/monk1_assess_model.json
+    python -m runner --config configs/monk1/monk1_assess_model.json --tag lr03-try
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         prog="runner", description="Runs an experiment from a config file."
     )
-    parser.add_argument("--config", required=True, help="path to a JSON/YAML config file")
+    parser.add_argument("--config", required=True, help="path to a JSON config file")
     parser.add_argument("--tag", help="override of the tag (run label)")
     args = parser.parse_args()
 

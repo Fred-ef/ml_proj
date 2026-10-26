@@ -8,7 +8,6 @@ from src.model_selection.kfold import cross_validate
 from src.model_selection.scaling import prepare_split
 from src.model_selection.trials import run_trials
 from src.utils.metrics import accuracy, mee
-from service.schemas import AssessConfig, TrainConfig
 
 
 X = np.array([[0.0], [1.0], [2.0]])
@@ -106,20 +105,6 @@ def test_scalers_are_fitted_only_on_training_data():
     assert x_val[0, 0] == pytest.approx(9.0)
     assert y_train[:, 0] == pytest.approx([-1.0, 1.0])
     assert y_val[0] == pytest.approx([10.0, 5.0])
-
-
-def test_train_and_assess_payloads_preserve_scaling_and_normalize_null_delta():
-    payload = {
-        "arch": [{"units": 2, "act": "identity"}],
-        "optim": {"type": "sgd", "lr": 0.1},
-        "epochs": 2,
-        "scale": True,
-        "min_delta": None,
-    }
-    for schema in (TrainConfig, AssessConfig):
-        validated = schema.model_validate(payload).model_dump()
-        assert validated["scale"] is True
-        assert validated["min_delta"] == 0.0
 
 
 @pytest.mark.parametrize("workflow", ["holdout", "kfold", "trials"])

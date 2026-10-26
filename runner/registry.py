@@ -120,15 +120,13 @@ def _select(payload: dict, data: tuple, profile: TaskProfile):
         "n_trials": n_trials,
         "seed_plan": search["seed_plan"],
         "ranking": [_ranking_row(r, metric) for r in results],
-        # A diverged configuration has no curves: an empty entry keeps the ranks aligned.
-        "curves": [r.get("curves", {}) for r in results],
+        "curves": [r["curves"] for r in results],
     }
     return summary, None
 
 
 def _ranking_row(r: dict, metric: str) -> dict:
-    """One summary.json row. A diverged configuration keeps its place and the
-    point where it diverged, with every score set to None (null in JSON)."""
+    """One summary.json row: the scores of a configuration and the configuration."""
     sources = {
         "train_error": "train_error", "val_error": "val_error",
         "train_mean": f"train_{metric}_mean", "train_std": f"train_{metric}_std",
@@ -144,10 +142,7 @@ def _ranking_row(r: dict, metric: str) -> dict:
         "val_init_std": f"val_{metric}_init_std",
         "per_trial_val": f"per_trial_val_{metric}",
     }
-    diverged = r.get("diverged")
-    row = {name: None if diverged else r[key] for name, key in sources.items()}
-    row["n_trials"] = r["n_trials"]
-    return {**row, "diverged": diverged, "config": r["config"]}
+    return {**{name: r[key] for name, key in sources.items()}, "config": r["config"]}
 
 
 def _assess(payload: dict, data: tuple, profile: TaskProfile):

@@ -63,27 +63,17 @@ def classification_config(**overrides):
     return cfg
 
 
-# --- build_model: optimizer dispatch beyond sgd/quickprop --------------------
+# --- build_model: learning-rate schedules ------------------------------------
 
-def test_build_model_wires_adagrad_and_its_kwargs():
-    from src.nn.rates import AdaGrad
-    cfg = classification_config(optim={"type": "adagrad", "lr": 0.05, "epsilon": 1e-6})
-    model = build_model(cfg)
-    assert isinstance(model.optimizer, AdaGrad)
-    assert model.optimizer.lr == 0.05
-    assert model.optimizer.epsilon == 1e-6
-
-
-def test_build_model_resolves_a_linear_decay_lr_schedule_for_sgd_and_adagrad():
+def test_build_model_resolves_a_linear_decay_lr_schedule_for_sgd():
     from src.nn.rates import LinearDecay
-    for optim_type in ("sgd", "adagrad"):
-        cfg = classification_config(optim={"type": optim_type,
-                                           "lr": {"type": "linear_decay", "eta_0": 0.2, "tau": 5, "eta_tau": 0.02}})
-        model = build_model(cfg)
-        assert isinstance(model.optimizer.lr, LinearDecay)
-        assert model.optimizer.lr.eta_0 == 0.2
-        assert model.optimizer.lr.tau == 5
-        assert model.optimizer.lr.eta_tau == 0.02
+    cfg = classification_config(optim={"type": "sgd",
+                                       "lr": {"type": "linear_decay", "eta_0": 0.2, "tau": 5, "eta_tau": 0.02}})
+    model = build_model(cfg)
+    assert isinstance(model.optimizer.lr, LinearDecay)
+    assert model.optimizer.lr.eta_0 == 0.2
+    assert model.optimizer.lr.tau == 5
+    assert model.optimizer.lr.eta_tau == 0.02
 
 
 def test_scheduled_lr_object_receives_steps_per_epoch_from_fit():
