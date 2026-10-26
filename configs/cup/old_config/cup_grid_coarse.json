@@ -1,0 +1,47 @@
+{
+  "task": "cup",
+  "mode": "select",
+  "tag": "cup-grid-coarse-full-glorot",
+  "config": {
+    "seed": null,
+    "n_core": 16,
+    "n_trials": 5,
+    "k": 3,
+    "plot_top": 20,
+    "scale":true,
+    "fixed": {
+      "init": "glorot",
+      "loss": "mse",
+      "epochs": 2500,
+      "batch_size": null,
+      "scale": true,
+      "patience": 50,
+      "min_delta": 0.001
+    },
+    "grid": {
+      "arch": [
+        [{"units": 64, "act": "sigmoid"}, {"units": 4, "act": "identity"}],
+        [{"units": 128, "act": "sigmoid"}, {"units": 4, "act": "identity"}],
+        [{"units": 128, "act": "sigmoid"}, {"units": 128, "act": "sigmoid"}, {"units": 4, "act": "identity"}],
+        [{"units": 128, "act": "sigmoid"}, {"units": 64, "act": "sigmoid"}, {"units": 4, "act": "identity"}],
+        [{"units": 64, "act": "sigmoid"}, {"units": 64, "act": "sigmoid"}, {"units": 64, "act": "sigmoid"}, {"units": 4, "act": "identity"}],
+        [{"units": 128, "act": "sigmoid"}, {"units": 128, "act": "sigmoid"}, {"units": 128, "act": "sigmoid"}, {"units": 4, "act": "identity"}]
+      ],
+      "optim": [
+        {"type": "sgd", "lr": 0.0001, "momentum": 0.0},
+        {"type": "sgd", "lr": 0.0001, "momentum": 0.8, "nesterov": true},
+        {"type": "sgd", "lr": 0.001, "momentum": 0.0},
+        {"type": "sgd", "lr": 0.001, "momentum": 0.8, "nesterov": true},
+        {"type": "sgd", "lr": 0.01, "momentum": 0.0},
+        {"type": "sgd", "lr": 0.01, "momentum": 0.8, "nesterov": true},
+        {"type": "sgd", "lr": 0.1, "momentum": 0.0},
+        {"type": "sgd", "lr": 0.1, "momentum": 0.8, "nesterov": true}
+      ],
+      "reg": [
+        null,
+        {"type": "l2", "lam": 0.0001},
+        {"type": "l2", "lam": 0.001}
+      ]
+    }
+  }
+}

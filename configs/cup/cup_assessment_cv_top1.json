@@ -1,16 +1,17 @@
 {
   "task": "cup",
   "mode": "assess",
-  "tag": "cup-assess-64x64-relu-he-l2",
+  "tag": "cup-assess-cv-top1",
   "config": {
     "seed": null,
-    "n_trials": 50,
+    "n_trials": 30,
     "init": "he",
     "loss": "mse",
-    "epochs": 1800,
+    "epochs": 10000,
     "batch_size": null,
     "scale": true,
-    "patience": null,
+    "patience": 100,
+    "min_delta": 0.0001,
     "n_inputs": 12,
     "arch": [
       {"units": 64, "act": "relu"},
@@ -19,15 +20,15 @@
     ],
     "reg": {
       "type": "l2",
-      "lam": 0.01
+      "lam": 0.008
     },
     "optim": {
       "type": "sgd",
-      "lr": 0.011,
+      "lr": 0.01,
       "momentum": 0.9,
       "nesterov": false
     },
-    "val_mean": 21.092330585176704,
-    "val_std": 0.5259589239965923
+    "cv_stop_target": 16.689531177411517,
+    "cv_stop_metric": "mee"
   }
 }

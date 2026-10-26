@@ -1,0 +1,41 @@
+{
+  "task": "cup",
+  "mode": "select",
+  "tag": "cup-grid-hyperparams-64x64-linear-decay",
+  "config": {
+    "seed": 42,
+    "n_core": 16,
+    "n_trials": 10,
+    "k": 3,
+    "plot_top": 10,
+    "fixed": {
+      "init": "he",
+      "loss": "mse",
+      "epochs": 2500,
+      "batch_size": null,
+      "scale": true,
+      "patience": 100,
+      "min_delta": 0.001
+    },
+    "grid": {
+      "arch": [[
+        {"units": 64, "act": "relu"},
+        {"units": 64, "act": "relu"},
+        {"units": 4, "act": "identity"}
+      ]],
+      "optim": [
+        {"type": "sgd", "lr": {"type": "linear_decay", "eta_0": 0.011, "tau": 1700, "eta_tau": 0.0011}, "momentum": 0, "nesterov": true},
+        {"type": "sgd", "lr": {"type": "linear_decay", "eta_0": 0.011, "tau": 1700, "eta_tau": 0.0011}, "momentum": 0.75, "nesterov": true},
+        {"type": "sgd", "lr": {"type": "linear_decay", "eta_0": 0.011, "tau": 1700, "eta_tau": 0.0011}, "momentum": 0.85, "nesterov": true},
+        {"type": "sgd", "lr": {"type": "linear_decay", "eta_0": 0.011, "tau": 1700, "eta_tau": 0.0011}, "momentum": 0.88, "nesterov": true},
+        {"type": "sgd", "lr": {"type": "linear_decay", "eta_0": 0.011, "tau": 1700, "eta_tau": 0.0011}, "momentum": 0.9, "nesterov": true}
+      ],
+      "reg": [
+        null,
+        {"type": "l2", "lam": 0.0001},
+        {"type": "l2", "lam": 0.001},
+        {"type": "l2", "lam": 0.01}
+      ]
+    }
+  }
+}

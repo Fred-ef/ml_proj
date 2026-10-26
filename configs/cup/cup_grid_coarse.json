@@ -8,7 +8,7 @@
     "n_trials": 5,
     "k": 3,
     "plot_top": 20,
-    "scale":true,
+    "scale": true,
     "fixed": {
       "init": "glorot",
       "loss": "mse",
@@ -18,30 +18,17 @@
       "patience": 50,
       "min_delta": 0.001
     },
-    "grid": {
-      "arch": [
-        [{"units": 64, "act": "sigmoid"}, {"units": 4, "act": "identity"}],
-        [{"units": 128, "act": "sigmoid"}, {"units": 4, "act": "identity"}],
-        [{"units": 128, "act": "sigmoid"}, {"units": 128, "act": "sigmoid"}, {"units": 4, "act": "identity"}],
-        [{"units": 128, "act": "sigmoid"}, {"units": 64, "act": "sigmoid"}, {"units": 4, "act": "identity"}],
-        [{"units": 64, "act": "sigmoid"}, {"units": 64, "act": "sigmoid"}, {"units": 64, "act": "sigmoid"}, {"units": 4, "act": "identity"}],
-        [{"units": 128, "act": "sigmoid"}, {"units": 128, "act": "sigmoid"}, {"units": 128, "act": "sigmoid"}, {"units": 4, "act": "identity"}]
+    "search": {
+      "architectures": [
+        [128, 64],
+        [128, 128],
+        [64, 64, 64],
+        [128, 64, 32],
+        [128, 128, 128]
       ],
-      "optim": [
-        {"type": "sgd", "lr": 0.0001, "momentum": 0.0},
-        {"type": "sgd", "lr": 0.0001, "momentum": 0.8, "nesterov": true},
-        {"type": "sgd", "lr": 0.001, "momentum": 0.0},
-        {"type": "sgd", "lr": 0.001, "momentum": 0.8, "nesterov": true},
-        {"type": "sgd", "lr": 0.01, "momentum": 0.0},
-        {"type": "sgd", "lr": 0.01, "momentum": 0.8, "nesterov": true},
-        {"type": "sgd", "lr": 0.1, "momentum": 0.0},
-        {"type": "sgd", "lr": 0.1, "momentum": 0.8, "nesterov": true}
-      ],
-      "reg": [
-        null,
-        {"type": "l2", "lam": 0.0001},
-        {"type": "l2", "lam": 0.001}
-      ]
+      "hidden_activation": "sigmoid",
+      "output": {"units": 4, "activation": "identity"},
+      "optimizer": {"type": "sgd", "lr": [0.0001, 0.001, 0.01, 0.1]}
     }
   }
 }

@@ -23,10 +23,31 @@ def load_cup_train(path: str) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
 
 
 def load_cup_blind(path: str) -> tuple[np.ndarray, np.ndarray]:
-    """Return (ids[N], X[N,12]) from the blind test csv"""
-    data = np.loadtxt(path, delimiter=',', comments='#')
-    ids = data[:, 0].astype(int)
-    X = data[:, 1:1+N_INPUTS]
+    """Return (ids[N], X[N,12]) from the blind test csv (no targets)."""
+    try:
+        data = np.loadtxt(path, delimiter=',', comments='#', ndmin=2)
+    except ValueError as exc:
+        raise ValueError(f"Invalid CUP blind CSV: {exc}") from exc
+
+    expected_columns = 1 + N_INPUTS
+    if data.shape[0] == 0 or data.shape[1] != expected_columns:
+        raise ValueError(
+            f"CUP blind CSV must contain at least one row with exactly "
+            f"{expected_columns} columns (id and {N_INPUTS} inputs)"
+        )
+    if not np.isfinite(data).all():
+        raise ValueError("CUP blind CSV contains non-finite IDs or inputs")
+
+    raw_ids = data[:, 0]
+    # IDs are loaded as float along with the features. Reject values beyond
+    # float64's exact integer range rather than silently changing an ID.
+    if np.any(raw_ids != np.floor(raw_ids)) or np.any(np.abs(raw_ids) >= 2**53):
+        raise ValueError("CUP blind CSV IDs must be exact integers")
+    ids = raw_ids.astype(np.int64)
+    if np.unique(ids).size != ids.size:
+        raise ValueError("CUP blind CSV contains duplicate IDs")
+
+    X = data[:, 1:]
     return ids, X
 
 

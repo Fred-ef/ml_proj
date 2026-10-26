@@ -5,17 +5,17 @@
   "config": {
     "seed": 42,
     "n_core": 16,
-    "n_trials": 20,
-    "k": 3,
+    "n_trials": 10,
+    "k": 5,
     "plot_top": 10,
     "fixed": {
       "init": "he",
       "loss": "mse",
-      "epochs": 2500,
+      "epochs": 5000,
       "batch_size": null,
       "scale": true,
       "patience": 100,
-      "min_delta": 0.001
+      "min_delta": 0.0001
     },
     "search": {
       "architectures": [[64,64]],
@@ -28,7 +28,7 @@
       },
       "reg": {
         "type": "l2",
-        "lam": {"scale": "log", "start": 0.0001, "stop": 0.01, "factor": 10},
+        "lam": {"scale": "linear", "start": 0.008, "stop": 0.01, "step": 0.001},
         "include_none": true
       }
     }

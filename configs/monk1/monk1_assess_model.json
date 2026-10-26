@@ -6,21 +6,20 @@
     "init": "glorot",
     "init_kwargs": null,
     "loss": "mse",
-    "epochs": 160,
-    "batch_size": 6,
+    "epochs": 1400,
+    "batch_size": null,
     "scale": null,
     "reg": null,
     "patience": null,
     "n_inputs": 17,
+    "momentum": null,
     "arch": [
       {"units": 4, "act": "tanh"},
       {"units": 1, "act": "sigmoid"}
     ],
     "optim": {
       "type": "sgd",
-      "lr": 0.5,
-      "momentum": 0.7,
-      "nesterov": true
+      "lr": 0.7
     },
     "seed": null,
     "n_trials": 50

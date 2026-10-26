@@ -9,7 +9,8 @@
     "epochs": 150,
     "batch_size": 1,
     "scale": null,
-    "patience": null,
+    "patience": 30,
+    "delta_min": 0.001,
     "n_inputs": 17,
           "reg": {
         "type": "l2",

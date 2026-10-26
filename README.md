@@ -15,7 +15,7 @@ src/
   utils/            metrics, plotting, seeding, parallel runs, run saving
 runner/             CLI that runs an experiment from a JSON config
 configs/            experiment configs, one folder per task
-experiments/        cup_final.py (blind test output)
+experiments/        cup_final.py (final fit), cup_predict.py (blind output)
 tests/              pytest suite
 results/            run outputs (git-ignored)
 report/             slide report
@@ -105,6 +105,53 @@ first one on ties) and its weights are restored before scoring. `min_delta` is
 the absolute improvement needed to reset the `patience` counter and does not
 change which checkpoint is chosen; it is in MSE units for MONK (`0` lets every
 strict improvement reset it) and in MEE units for CUP.
+
+### CUP assessment and final model
+
+For the ML-CUP25 rank-1 CV result, `configs/cup/cup_assessment_cv_top1.json`
+already carries its model settings (L2 lambda 0.008, 10000-epoch cap) and MEE
+target (16.689531177411517). It keeps 30 independent assessment trials:
+
+```bash
+python -m runner --config configs/cup/cup_assessment_cv_top1.json
+```
+
+After a CUP `assess` run, train one final model on **all labelled rows**
+(500 in the official CUP training CSV):
+
+```bash
+python -m experiments.cup_final --assessment-run results/cup/RUN_ID
+```
+
+This command uses the saved configuration and the weight/shuffle seeds of
+assessment trial 0, selected before consulting internal-test scores. It starts
+from fresh weights, fits the input and target scalers on the full training CSV,
+and applies the same CV training-error target (if configured). The new run under
+`results/cup/` contains `model.npz` (weights, configuration, scalers and
+provenance), `config.json`, `summary.json`, and `history.csv`. Use `--train-data`
+to select a different labelled CUP CSV and `--results-root` to change the output
+directory. Blind-test prediction and submission CSV export are not implemented
+by this command; use the separate prediction command below.
+
+### CUP blind-test predictions
+
+Load a saved final model and export the blind CSV in the four-comment
+ML-CUP25 format:
+
+```bash
+python -m experiments.cup_predict \
+  --model results/cup/FINAL_RUN/model.npz \
+  --input data/cup/ML-CUP25-TS.csv \
+  --output results/cup/TEAM_ML-CUP25-TS.csv \
+  --members "Name Surname, Name Surname" \
+  --team "Team Name" --date 26/10/2026
+```
+
+The input must contain an ID and 12 numeric inputs per row. The command
+preserves input IDs and order, applies the saved input scaler, returns the four
+predictions to the original target units, and writes no CSV header. It warns
+when the saved final fit stopped at its epoch limit without reaching the CV
+target. Replace the names, team, and date with the actual submission metadata.
 
 ### Scaling and stratification
 

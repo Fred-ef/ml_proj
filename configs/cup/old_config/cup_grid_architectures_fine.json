@@ -5,24 +5,22 @@
   "config": {
     "seed": null,
     "n_core": 16,
-    "n_trials": 2,
-    "k": 3,
-    "plot_top": 20,
+    "n_trials": 5,
+    "k": 5,
+    "plot_top": 36,
     "fixed": {
       "init": "glorot",
       "loss": "mse",
       "epochs": 2500,
       "batch_size": null,
       "scale": true,
-      "patience": 50,
-      "min_delta": 0.001
+      "patience": null
     },
     "search": {
-      "hidden_layers": {"scale": "int", "start": 2, "stop": 3},
+      "hidden_layers": {"scale": "int", "start": 2, "stop": 2},
       "hidden_units": [
-        {"scale": "linear", "start": 64, "stop": 128, "step": 32},
         {"scale": "int", "start": 64, "stop": 64},
-        {"scale": "int", "start": 32, "stop": 32}
+        {"scale": "int", "start": 64, "stop": 64}
       ],
       "hidden_activation": "relu",
       "output": {"units": 4, "activation": "identity"},
@@ -40,7 +38,8 @@
       },
       "reg": {
         "type": "l2",
-        "lam": {"scale": "log", "start": 0.0001, "stop": 0.01, "factor": 10}
+        "lam": {"scale": "log", "start": 0.0001, "stop": 0.01, "factor": 10},
+        "include_none": true
       }
     }
   }
