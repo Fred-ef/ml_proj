@@ -77,13 +77,34 @@ creates one reproducible holdout from the training data (20% by default, or
 `val_fraction` if set) and uses the task's validation metric for early stopping.
 Without `patience` or `val_fraction`, it trains on all available training examples and
 reports only training scores. `select` uses its own holdout or k-fold validation
-to compare configurations. `assess` trains for the fixed `epochs` and scores
-the held-out test set after training; any carried-over `patience` setting
-has no effect in this mode. The test set is also recorded epoch by epoch, only
-to draw its learning curve: with no early stopping, no choice depends on it, and
-the trained models are the same as without it.
-Set `assess.config.epochs` to the chosen configuration's
-`best_epoch_median` from `select`; the CLI does not copy it automatically.
+to compare configurations. `assess` retrains on the entire development set and
+uses `epochs` as its training limit; any carried-over `patience` setting has no
+effect in this mode. The held-out test set is recorded at each epoch for the
+learning curve, but it does not control stopping or checkpoint selection.
+Without a CV target, assessment runs for the fixed `epochs`; set it to the
+chosen configuration's `best_epoch_median` if that is the desired duration.
+
+### CV-guided stopping for final assessment
+
+For each fold of a k-fold `select` run, find the first epoch with the lowest
+validation error and record the training error at that epoch. The arithmetic
+mean of those training errors is the final retraining threshold. With multiple
+initializations, the mean covers every trial and fold. The selected ranking
+row records the threshold as `cv_stop_target`, its units as `cv_stop_metric`,
+and the individual values and epochs as `cv_stop_train_errors` and
+`cv_stop_epochs`.
+
+Copy the chosen row's `config`, `cv_stop_target`, and `cv_stop_metric` into the
+`assess` configuration. Keep its original `epochs` value as the maximum number
+of epochs. Assessment starts from fresh weights and stops at the first completed
+epoch whose training error is at or below the threshold. If it never reaches
+the threshold, it runs through `epochs`. With no `cv_stop_target`, assessment
+still uses the fixed number of epochs. Copying the fields from `select` into
+`assess` is currently a manual step in the CLI.
+
+MONK uses training and validation `loss` (MSE) for this criterion. CUP uses MEE
+in the original target units, including when `scale: true`; the training loss
+can then be in standardized units and must not be compared with the MEE target.
 
 `learning_curve.png` of a `train` or `assess` run has two panels, in the style of
 the report figures: the MSE on the left and the task metric on the right

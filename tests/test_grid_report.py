@@ -182,6 +182,32 @@ def test_report_distinguishes_completed_epochs_from_best_validation_epochs():
     assert "criterio precedente" not in plain_kfold
 
 
+def test_kfold_report_shows_retraining_target_and_its_fold_values():
+    row = {
+        "config": {"n_inputs": 1, "arch": [{"units": 1, "act": "identity"}],
+                   "optim": {"type": "sgd", "lr": 0.1}, "epochs": 8},
+        "train_error": 1.0, "val_error": 2.0,
+        "train_mean": 1.0, "val_mean": 2.0,
+        "train_std": None, "val_std": None,
+        "train_init_std": None, "val_init_std": None,
+        "best_epoch_median": 8, "best_epochs": [8, 8], "epochs_run": [8, 8],
+        "n_trials": 1,
+        "cv_stop_metric": "mee", "cv_stop_target": 0.35,
+        "cv_stop_train_errors": [0.3, 0.4], "cv_stop_epochs": [3, 5],
+    }
+    summary = {"metric": "mee", "validation_mode": "kfold", "n_configs": 1,
+               "ranking": [row]}
+    report = format_select_summary(summary)
+
+    assert _reported_value(report, "Soglia arresto retraining") == "0.35"
+    assert _reported_value(report, "Errori training ai minimi validation") == "0.3, 0.4"
+    assert _reported_value(report, "Epoche dei minimi validation") == "3, 5"
+    assert "MEE, unità originali" in report
+
+    summary["validation_mode"] = "holdout"
+    assert "Soglia arresto retraining" not in format_select_summary(summary)
+
+
 def test_report_shows_first_twenty_and_all_option_restores_full_list(tmp_path, capsys):
     ranking = []
     for rank in range(1, 22):

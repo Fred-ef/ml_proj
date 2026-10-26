@@ -87,6 +87,34 @@ def test_grid_search_repeats_each_config_over_initializations(monkeypatch):
     assert best["epochs_run"] == [2, 2, 2]
 
 
+def test_kfold_grid_search_averages_all_fold_and_trial_stop_errors(monkeypatch):
+    from src.model_selection import grid_search as grid_module
+
+    def fake_cross_validate(build_model, config, X, Y, *, k, seed, metric, trial):
+        errors = [1.0 + trial, 3.0 + trial]
+        return {
+            "best_epochs": [1, 1], "epochs_run": [1, 1],
+            "train_scores": [5.0, 5.0], "val_scores": [6.0, 6.0],
+            "train_curves": [[5.0], [5.0]], "val_curves": [[6.0], [6.0]],
+            "train_loss_curves": [[5.0], [5.0]],
+            "val_loss_curves": [[6.0], [6.0]],
+            "objective_curves": [[5.0], [5.0]],
+            "cv_stop_train_errors": errors,
+            "cv_stop_epochs": [1, 1], "cv_stop_metric": "mee",
+        }
+
+    monkeypatch.setattr(grid_module, "cross_validate", fake_cross_validate)
+    X = np.zeros((6, 1))
+    result = grid_search([{"candidate": 0}], build_model, X, X,
+                         k=2, seed=7, metric="mee", n_trials=2)["ranking"][0]
+
+    assert result["cv_stop_train_errors"] == pytest.approx([1.0, 3.0, 2.0, 4.0])
+    assert result["cv_stop_epochs"] == [1, 1, 1, 1]
+    assert result["cv_stop_target"] == pytest.approx(2.5)
+    assert result["cv_stop_metric"] == "mee"
+    assert result["train_mee_mean"] == pytest.approx(5.0)  # ranking score unchanged
+
+
 def test_report_shows_spread_across_initializations():
     row = {"config": {"n_inputs": 1, "arch": [{"units": 1, "act": "sigmoid"}],
                       "optim": {"type": "sgd", "lr": 0.1}, "epochs": 12},

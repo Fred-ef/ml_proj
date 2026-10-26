@@ -6,6 +6,8 @@ per-epoch metrics for plotting. Fully vectorized and reproducible from a seed.
 """
 
 from __future__ import annotations
+
+import math
 from typing import Callable
 
 import numpy as np
@@ -67,14 +69,23 @@ class Network:
         validation_data: tuple[np.ndarray, np.ndarray] | None = None,
         early_stopping: EarlyStopping | None = None,
         metrics: dict[str, Callable] | None = None,
+        training_target: tuple[str, float] | None = None,
     ) -> dict[str, list[float]]:
-        """Train the network, populating and returning ``self.history``."""
+        """Train and record each epoch; an optional training target stops at first reach."""
         self.history = {"loss": [], "val_loss": []}
         for _name in (metrics or {}):
             self.history[_name] = []
             self.history["val_" + _name] = []
         self.selected_epoch = None
         self.epochs_run = 0
+        if training_target is not None:
+            target_key, target_value = training_target
+            if early_stopping is not None:
+                raise ValueError("training_target cannot be combined with early_stopping")
+            if target_key not in self.history or target_key.startswith("val_"):
+                raise ValueError(f"training target metric {target_key!r} is not available")
+            if not math.isfinite(target_value) or target_value < 0:
+                raise ValueError("training target must be finite and non-negative")
         if early_stopping is not None:
             if validation_data is None:
                 raise ValueError("early_stopping requires validation_data")
@@ -125,6 +136,8 @@ class Network:
                     best_parameters = [(layer.W.copy(), layer.b.copy()) for layer in self.layers]
                 if stop:
                     break
+            if training_target is not None and self.history[target_key][-1] <= target_value:
+                break
         self.epochs_run = len(self.history["loss"])
         if early_stopping is not None:
             self.selected_epoch = early_stopping.best_epoch

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
@@ -142,7 +143,11 @@ def _ranking_row(r: dict, metric: str) -> dict:
         "val_init_std": f"val_{metric}_init_std",
         "per_trial_val": f"per_trial_val_{metric}",
     }
-    return {**{name: r[key] for name, key in sources.items()}, "config": r["config"]}
+    row = {name: r[key] for name, key in sources.items()}
+    for key in ("cv_stop_target", "cv_stop_metric", "cv_stop_train_errors", "cv_stop_epochs"):
+        if key in r:
+            row[key] = r[key]
+    return {**row, "config": r["config"]}
 
 
 def _assess(payload: dict, data: tuple, profile: TaskProfile):
@@ -150,6 +155,17 @@ def _assess(payload: dict, data: tuple, profile: TaskProfile):
     X_design, y_design, X_test, y_test = data
     name = profile.primary
     score_fn = profile.metrics[name]
+
+    target = payload.get("cv_stop_target")
+    expected_metric = "loss" if name == "acc" else name
+    if target is not None:
+        if (not isinstance(target, (int, float)) or isinstance(target, bool)
+                or not math.isfinite(target) or target < 0):
+            raise ValueError("cv_stop_target must be finite and non-negative")
+        if payload.get("cv_stop_metric", expected_metric) != expected_metric:
+            raise ValueError(f"cv_stop_metric must be {expected_metric!r} for {profile.name}")
+    elif payload.get("cv_stop_metric") is not None:
+        raise ValueError("cv_stop_metric requires cv_stop_target")
 
     summary, histories = run_trials(
         payload, X_design, y_design, X_test, y_test,
@@ -168,6 +184,10 @@ def _assess(payload: dict, data: tuple, profile: TaskProfile):
     if "val_mean" in payload:
         table[f"{name}_vl_mean"] = payload["val_mean"]
         table[f"{name}_vl_std"] = payload.get("val_std")
+    if target is not None:
+        for key in ("cv_stop_target", "cv_stop_metric", "cv_stop_reached",
+                    "cv_stop_final_errors", "epochs_run"):
+            table[key] = summary[key]
 
     # The held-out curves of an assessment are on the test set: name them test_*.
     history = {("test_" + key[len("val_"):] if key.startswith("val_") else key): values

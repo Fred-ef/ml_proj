@@ -29,6 +29,8 @@ def run_trials(config: dict, X_tr, y_tr, X_te, y_te, metrics: dict,
     n_trials  = config.get("n_trials", 5)
     master_seed = resolve_seed(config.get("seed", 0))
     patience = config.get("patience") if stage == "train" else None
+    target = config.get("cv_stop_target") if stage == "assess" else None
+    target_metric = "loss" if score_name == "acc" else score_name
     stratify = bool(config.get("stratify", False))
     if stratify and stage != "train":
         raise ValueError("stratify applies only to train validation")
@@ -53,6 +55,7 @@ def run_trials(config: dict, X_tr, y_tr, X_te, y_te, metrics: dict,
 
     eval_score, train_score, histories = [], [], []
     selected_epochs, epochs_run = [], []
+    target_reached, target_final_errors = [], []
     for i in range(n_trials):
         cfg_i = {**config, "seed": seed_plan["trials"][i]["weights"],
                  "shuffle_seed": seed_plan["trials"][i]["shuffle"]}
@@ -69,18 +72,17 @@ def run_trials(config: dict, X_tr, y_tr, X_te, y_te, metrics: dict,
             scale=bool(config.get("scale")),
             classification=score_name == "acc" or str(config.get("task", "")).startswith("monk"))
 
-        # The training loss still uses the scaled targets. Evaluation metrics
-        # use the original target units; MONK stops on validation loss, while
-        # CUP stops on validation MEE in those original units.
+        # The training loss uses scaled targets. Reported metrics use original
+        # target units; CUP uses that same metric for a training target.
         fit_metrics = {name: original_target_metric(fn, scaler_Y)
                        for name, fn in metrics.items()}
-        if use_validation:
+        if use_validation or target is not None:
             fit_metrics[score_name] = original_target_metric(score_fn, scaler_Y)
 
         model = build_model(cfg_i)
 
-        # Early stopping may inspect only a validation holdout from training.
-        # Assessment always runs for the fixed number of epochs.
+        # Validation early stopping belongs to train mode. Assessment can
+        # instead stop when the full-design training error reaches a CV target.
         es = (EarlyStopping(patience=patience,
                             min_delta=cfg_i.get("min_delta") or 0.0,
                             monitor="val_loss" if score_name == "acc" else f"val_{score_name}",
@@ -89,17 +91,23 @@ def run_trials(config: dict, X_tr, y_tr, X_te, y_te, metrics: dict,
                             else "min")
               if patience is not None else None)
 
-        # In assess the test set is only recorded epoch by epoch for the learning
-        # curve: there is no early stopping, so no choice depends on it.
-        history = model.fit(X_tr_i, y_tr_i, epochs=cfg_i["epochs"],
-                            batch_size=cfg_i.get("batch_size"),
-                            validation_data=((X_ev_i, y_ev_i) if X_ev_i is not None else None),
-                            metrics=fit_metrics,
-                            early_stopping=es)
+        # Assessment records the test curve, but the target checks only a
+        # training metric. No stopping decision depends on the test set.
+        fit_kwargs = dict(epochs=cfg_i["epochs"], batch_size=cfg_i.get("batch_size"),
+                          validation_data=((X_ev_i, y_ev_i) if X_ev_i is not None else None),
+                          metrics=fit_metrics, early_stopping=es)
+        if target is not None:
+            fit_kwargs["training_target"] = (target_metric, target)
+        history = model.fit(X_tr_i, y_tr_i, **fit_kwargs)
 
         if es is not None:
             selected_epochs.append(es.best_epoch)
             epochs_run.append(len(history["loss"]))
+        if target is not None:
+            error = float(history[target_metric][-1])
+            epochs_run.append(len(history["loss"]))
+            target_final_errors.append(error)
+            target_reached.append(error <= target)
 
         pred_tr = model.predict(X_tr_i)
         pred_ev = model.predict(X_ev_i) if X_ev_i is not None else None
@@ -144,4 +152,10 @@ def run_trials(config: dict, X_tr, y_tr, X_te, y_te, metrics: dict,
     if stage == "train" and patience is not None:
         summary["selected_epochs"] = selected_epochs
         summary["epochs_run"] = epochs_run
+    if target is not None:
+        summary.update({"cv_stop_target": float(target),
+                        "cv_stop_metric": target_metric,
+                        "cv_stop_reached": target_reached,
+                        "cv_stop_final_errors": target_final_errors,
+                        "epochs_run": epochs_run})
     return summary, histories

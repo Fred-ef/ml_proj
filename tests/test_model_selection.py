@@ -107,7 +107,8 @@ def test_cross_validate_default_metric_is_loss():
                            "train_loss_std", "best_epoch_median", "best_epochs",
                            "epochs_run", "train_scores", "val_scores",
                            "train_curves", "val_curves",
-                           "train_loss_curves", "val_loss_curves"}
+                           "train_loss_curves", "val_loss_curves",
+                           "cv_stop_train_errors", "cv_stop_epochs", "cv_stop_metric"}
 
 
 # --- cross_validate: epoch selection (deterministic, no training) ------------
@@ -141,6 +142,10 @@ def test_cross_validate_without_early_stopping_scores_final_epoch(
     assert result["best_epochs"] == [3, 3]
     assert result["best_epoch_median"] == 3
     assert result["epochs_run"] == [3, 3]
+    assert result["cv_stop_epochs"] == [2, 2]
+    assert result["cv_stop_train_errors"] == pytest.approx(
+        [0.1 if metric in ("loss", "acc") else 0.05] * 2)
+    assert result["cv_stop_metric"] == ("loss" if metric == "acc" else metric)
 
 def test_cross_validate_selects_monk_epoch_by_loss_but_reports_accuracy(monkeypatch):
     fixed_history = {
@@ -167,6 +172,7 @@ def test_cross_validate_selects_monk_epoch_by_loss_but_reports_accuracy(monkeypa
     assert result["best_epochs"] == [5, 5]  # loss minimum at epoch 5
     assert result["best_epoch_median"] == 5
     assert result["epochs_run"] == [5, 5]
+    assert result["cv_stop_train_errors"] == pytest.approx([0.2, 0.2])
 
 
 def test_cross_validate_picks_the_min_epoch_for_a_lower_is_better_metric(monkeypatch):
@@ -185,6 +191,7 @@ def test_cross_validate_picks_the_min_epoch_for_a_lower_is_better_metric(monkeyp
     assert result["val_mee_mean"] == pytest.approx(0.05)
     assert result["best_epochs"] == [3, 3]
     assert result["epochs_run"] == [5, 5]
+    assert result["cv_stop_train_errors"] == pytest.approx([0.1, 0.1])
 
 
 def test_cross_validate_records_actual_epochs_run_per_fold(monkeypatch):

@@ -5,7 +5,7 @@ import pytest
 
 from src.model_selection.build import build_model
 from src.model_selection.holdout import holdout_indices, holdout_validate
-from src.model_selection.kfold import cross_validate
+from src.model_selection.kfold import cross_validate, kfold_indices
 from src.utils.seeding import derive_seed
 
 
@@ -55,6 +55,46 @@ def test_cross_validate_returns_one_score_and_one_curve_per_fold():
     # The existing summary keys keep their meaning.
     assert result["val_loss_mean"] == pytest.approx(0.45)
     assert result["epochs_run"] == [2, 3]
+
+
+def test_cv_stop_target_uses_first_validation_minimum_even_without_early_stopping():
+    histories = iter([
+        {"loss": [0.9, 0.3, 0.2, 0.1], "val_loss": [1.0, 0.4, 0.4, 0.5]},
+        {"loss": [0.8, 0.4, 0.25, 0.2], "val_loss": [0.9, 0.7, 0.6, 0.7]},
+    ])
+    X, Y = np.zeros((6, 1)), np.zeros((6, 1))
+    result = cross_validate(lambda cfg: FixedHistory(next(histories)), {"epochs": 4},
+                            X, Y, k=2, seed=0)
+
+    assert result["best_epochs"] == [4, 4]  # ranking still uses final epochs
+    assert result["train_scores"] == [0.1, 0.2]
+    assert result["cv_stop_epochs"] == [2, 3]  # first of the tied minima
+    assert result["cv_stop_train_errors"] == pytest.approx([0.3, 0.25])
+    assert result["cv_stop_metric"] == "loss"
+
+
+def test_cv_stop_loss_is_reported_in_original_units_when_targets_are_scaled():
+    class ScaledHistory:
+        def fit(self, X_train, Y_train, *, validation_data, metrics, **kwargs):
+            _, Y_val = validation_data
+            name, score_fn = next(iter(metrics.items()))
+            assert name == "reported_loss"
+            return {
+                "loss": [0.0], "val_loss": [0.0],
+                name: [score_fn(np.zeros_like(Y_train), Y_train)],
+                f"val_{name}": [score_fn(np.zeros_like(Y_val), Y_val)],
+            }
+
+    X = np.arange(6, dtype=float).reshape(-1, 1)
+    Y = np.array([[10.0], [20.0], [30.0], [40.0], [50.0], [60.0]])
+    result = cross_validate(lambda cfg: ScaledHistory(),
+                            {"epochs": 1, "scale": True}, X, Y, k=3, seed=7)
+    expected = [float(np.var(Y[train_idx]))
+                for train_idx, _ in kfold_indices(len(X), 3, derive_seed(7, "select_split"))]
+
+    assert result["cv_stop_train_errors"] == pytest.approx(expected)
+    assert all(value > 0 for value in result["cv_stop_train_errors"])
+    assert result["train_loss_curves"] == [[0.0]] * 3
 
 
 def test_holdout_validate_trial_selects_the_seed_stream():

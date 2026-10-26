@@ -75,7 +75,9 @@ def test_kfold_averages_the_validation_loss_over_folds_and_trials(monkeypatch):
         return {"best_epoch_median": 2, "best_epochs": [2, 1], "epochs_run": [2, 2],
                 "train_scores": [1.0, 1.0], "val_scores": [1.0, 1.0],
                 "train_curves": curves, "val_curves": curves,
-                "train_loss_curves": curves, "val_loss_curves": curves}
+                "train_loss_curves": curves, "val_loss_curves": curves,
+                "cv_stop_train_errors": [0.5, 0.4],
+                "cv_stop_epochs": [1, 1], "cv_stop_metric": "loss"}
 
     monkeypatch.setattr(grid_module, "cross_validate", fake_cross_validate)
     X, Y = np.arange(10).reshape(-1, 1), np.zeros((10, 1))

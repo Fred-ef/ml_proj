@@ -255,6 +255,18 @@ def _result_fields(row: dict, metric: str, metric_label: str,
         units = "MSE, target standardizzati" if row["config"].get("scale") else "MSE"
         results.append((f"Loss validation all'epoca scelta ({units})",
                         _number(row["val_data_loss"])))
+    if validation_mode == "kfold" and row.get("cv_stop_target") is not None:
+        target_metric = row["cv_stop_metric"]
+        units = ("MSE, unità originali" if target_metric == "loss" else
+                 "MEE, unità originali" if target_metric == "mee" else target_metric)
+        where = _runs_label(row, validation_mode)
+        results.extend((
+            (f"Soglia arresto retraining ({units})", _number(row["cv_stop_target"])),
+            (f"Errori training ai minimi validation {where}",
+             ", ".join(_number(value) for value in row["cv_stop_train_errors"])),
+            (f"Epoche dei minimi validation {where}",
+             ", ".join(str(epoch) for epoch in row["cv_stop_epochs"])),
+        ))
     for name, label in (("train_std", "training"), ("val_std", "validation")):
         std = row[name]
         if std is not None:

@@ -39,6 +39,7 @@ def _evaluate_config(position, build_model, config, X, Y, k, seed, metric, split
     best_epochs, epochs_run = [], []
     train_loss_curves, val_loss_curves = [], []
     val_data_losses = []
+    cv_stop_train_errors, cv_stop_epochs = [], []
 
     for t in range(n_trials):
         if k is None:
@@ -60,6 +61,9 @@ def _evaluate_config(position, build_model, config, X, Y, k, seed, metric, split
         val_data_losses.append(
             [v[p - 1] for v, p in zip(val_loss_curves[-1], scores["best_epochs"])]
         )
+        if k is not None:
+            cv_stop_train_errors.extend(scores["cv_stop_train_errors"])
+            cv_stop_epochs.extend(scores["cv_stop_epochs"])
 
     train_stats = trial_statistics(train_scores)
     val_stats = trial_statistics(val_scores)
@@ -68,7 +72,7 @@ def _evaluate_config(position, build_model, config, X, Y, k, seed, metric, split
     val_error = 1.0 - val_stats["mean"] if metric == "acc" else val_stats["mean"]
     val_data_loss_mean = trial_statistics(val_data_losses)["mean"]
 
-    return {
+    result = {
         "config": config,
         "_grid_index": position,
         f"train_{metric}_mean": train_stats["mean"],
@@ -92,6 +96,14 @@ def _evaluate_config(position, build_model, config, X, Y, k, seed, metric, split
         "val_error": val_error,
         "val_data_loss": val_data_loss_mean,
     }
+    if k is not None:
+        result.update({
+            "cv_stop_target": float(np.mean(cv_stop_train_errors)),
+            "cv_stop_train_errors": cv_stop_train_errors,
+            "cv_stop_epochs": cv_stop_epochs,
+            "cv_stop_metric": "loss" if metric == "acc" else metric,
+        })
+    return result
 
 
 def trial_statistics(scores) -> dict:

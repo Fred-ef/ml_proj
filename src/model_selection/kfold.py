@@ -52,6 +52,9 @@ def cross_validate(build_model, config: dict, X, Y, k: int = 5, seed: int | None
     val_curves = []
     train_loss_curves = []
     val_loss_curves = []
+    cv_stop_train_errors = []
+    cv_stop_epochs = []
+    cv_stop_metric = "loss" if metric == "acc" else metric
 
     master_seed = resolve_seed(seed)
     split_seed = derive_seed(master_seed, "select_split")
@@ -113,6 +116,18 @@ def cross_validate(build_model, config: dict, X, Y, k: int = 5, seed: int | None
         train_loss_curves.append(history["loss"])
         val_loss_curves.append(history["val_loss"])
 
+        # The final retraining target is independent of the epoch used to rank
+        # this configuration. Find the first validation optimum in each fold,
+        # even when early stopping was disabled and ranking uses the last epoch.
+        # For scaled regression, score_train_key/score_val_key are the reported
+        # metrics in original target units (including reported_loss).
+        stop_train_key = "loss" if metric == "acc" else score_train_key
+        stop_val_key = "val_loss" if metric == "acc" else score_val_key
+        stop_pick = np.argmax if metric != "acc" and greater_is_better else np.argmin
+        stop_idx = int(stop_pick(history[stop_val_key]))
+        cv_stop_train_errors.append(float(history[stop_train_key][stop_idx]))
+        cv_stop_epochs.append(stop_idx + 1)
+
         # Without early stopping, score the final trained model. With early
         # stopping, retain the validation-selected epoch for compatibility.
         completed = len(history[score_val_key])
@@ -140,5 +155,8 @@ def cross_validate(build_model, config: dict, X, Y, k: int = 5, seed: int | None
         "train_curves": train_curves,
         "val_curves": val_curves,
         "train_loss_curves": train_loss_curves,
-        "val_loss_curves": val_loss_curves
+        "val_loss_curves": val_loss_curves,
+        "cv_stop_train_errors": cv_stop_train_errors,
+        "cv_stop_epochs": cv_stop_epochs,
+        "cv_stop_metric": cv_stop_metric,
     }

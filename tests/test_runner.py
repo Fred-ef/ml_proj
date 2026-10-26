@@ -94,8 +94,12 @@ def _assert_assess_curves_are_on_the_test_set(assess_dir, metric):
     with open(assess_dir / "history.csv", newline="") as f:
         rows = list(csv.DictReader(f))
     assert list(rows[0]) == ["epoch", "loss", "test_loss", metric, f"test_{metric}"]
-    assert len(rows) == json.loads((assess_dir / "config.json").read_text())["config"]["epochs"]
     rep = summary["representative_trial"]
+    if "epochs_run" in summary:
+        expected_epochs = summary["epochs_run"][rep]
+    else:
+        expected_epochs = json.loads((assess_dir / "config.json").read_text())["config"]["epochs"]
+    assert len(rows) == expected_epochs
     assert float(rows[-1][f"test_{metric}"]) == pytest.approx(
         summary[f"per_trial_ts_{metric}"][rep])
     assert (assess_dir / "learning_curve.png").exists()
@@ -127,10 +131,11 @@ def test_run_experiment_select_then_assess_chain(tmp_path):
     # Assess uses the explicitly selected row, even when it is not the first.
     chosen = select_summary["ranking"][1]
     assess_payload = dict(chosen["config"])
-    assess_payload["epochs"] = chosen["best_epoch_median"]
     assess_payload["n_trials"] = 2
     assess_payload["val_mean"] = chosen["val_mean"]
     assess_payload["val_std"] = chosen["val_std"]
+    assess_payload["cv_stop_target"] = chosen["cv_stop_target"]
+    assess_payload["cv_stop_metric"] = chosen["cv_stop_metric"]
 
     assess_dir = run_experiment("monk1", "assess", assess_payload,
                                 tag="pytest-assess", results_root=tmp_path)
@@ -140,6 +145,14 @@ def test_run_experiment_select_then_assess_chain(tmp_path):
     assert assess_summary["acc_vl_mean"] == chosen["val_mean"]
     assert len(assess_summary["seed_plan"]["trials"]) == 2
     _assert_assess_curves_are_on_the_test_set(assess_dir, "acc")
+    assert assess_summary["cv_stop_target"] == chosen["cv_stop_target"]
+    assert assess_summary["cv_stop_metric"] == "loss"
+    assert len(assess_summary["epochs_run"]) == 2
+    assert all(1 <= epoch <= assess_payload["epochs"] for epoch in assess_summary["epochs_run"])
+    assert assess_summary["cv_stop_reached"] == [
+        error <= assess_summary["cv_stop_target"]
+        for error in assess_summary["cv_stop_final_errors"]
+    ]
 
 
 def test_run_experiment_select_with_holdout_reports_per_config_errors(tmp_path):
