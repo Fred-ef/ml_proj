@@ -1,4 +1,4 @@
-"""Task profiles and mode handlers for runner.engine."""
+"""Task profiles and mode handlers for runner.engine"""
 
 from __future__ import annotations
 
@@ -31,7 +31,7 @@ class TaskProfile:
 def _profile(name: str, n_inputs: int, load: Callable, metric_name: str,
             allowed_modes: tuple[str, ...] = ("train", "select", "assess"),
             internal_test_split: tuple[float, int] | None = None) -> TaskProfile:
-    """Build a TaskProfile from the shared metrics registry."""
+    """Build a TaskProfile from the METRICS registry"""
     fn, greater_is_better = METRICS[metric_name]
     return TaskProfile(name, n_inputs, load, {metric_name: fn}, metric_name,
                        "max" if greater_is_better else "min", allowed_modes,
@@ -46,14 +46,14 @@ def _load_monk(which: int):
     return loader
 
 
-# Keep the CUP internal test split stable across select and assess runs.
+# same CUP internal test split in every select and assess run
 _CUP_TEST_FRAC = 0.2
 _CUP_SPLIT_SEED = 0
 
 
 def _load_cup(root: Path):
     _ids, X, Y = load_cup_train(str(root / "data" / "cup" / "ML-CUP25-TR.csv"))
-    # Reuse the MONK-shaped contract: train is the design set, test is internal.
+    # same shape as MONK (design set, internal test set)
     X_design, Y_design, X_test, Y_test = train_internal_test_split(
         X, Y, test_frac=_CUP_TEST_FRAC, seed=_CUP_SPLIT_SEED)
     return X_design, Y_design, X_test, Y_test
@@ -63,7 +63,7 @@ TASKS: dict[str, TaskProfile] = {
     "monk1": _profile("monk1", 17, _load_monk(1), "acc"),
     "monk2": _profile("monk2", 17, _load_monk(2), "acc"),
     "monk3": _profile("monk3", 17, _load_monk(3), "acc"),
-    # CUP uses select then assess so the internal test is touched only once.
+    # CUP: select then assess so the internal test set is used only once
     "cup": _profile("cup", 12, _load_cup, "mee",
                     allowed_modes=("select", "assess"),
                     internal_test_split=(_CUP_TEST_FRAC, _CUP_SPLIT_SEED)),
@@ -80,7 +80,7 @@ def get_task(task: str) -> TaskProfile:
 
 
 def _train(payload: dict, data: tuple, profile: TaskProfile):
-    """Train without consulting the held-out test set."""
+    """Train without using the test set"""
     X_tr, y_tr, _X_te, _y_te = data
     score_fn = profile.metrics[profile.primary]
     summary, histories = run_trials(
@@ -92,7 +92,7 @@ def _train(payload: dict, data: tuple, profile: TaskProfile):
 
 
 def _select(payload: dict, data: tuple, profile: TaskProfile):
-    """Run grid search with holdout or k-fold validation."""
+    """Run a grid search with holdout or k-fold validation"""
     X_tr, y_tr, _X_te, _y_te = data
     fixed = {**payload.get("fixed", {}), "n_inputs": payload["n_inputs"]}
     if ("grid" in payload) == ("search" in payload):
@@ -104,10 +104,10 @@ def _select(payload: dict, data: tuple, profile: TaskProfile):
         configurations = {**{key: [val] for key, val in fixed.items()}, **grid}
 
     metric = profile.primary
-    # null or missing = one weight initialization per configuration.
+    # null or missing = one weight initialization per configuration
     n_trials = payload.get("n_trials")
     n_trials = 1 if n_trials is None else n_trials
-    # -1 uses all cores; 1 runs sequentially; any other value sets worker count.
+    # -1 all cores, 1 sequential, N worker processes
     search = grid_search(configurations, build_model, X_tr, y_tr,
                          k=payload.get("k"), seed=payload.get("seed"),
                          metric=metric, n_core=payload.get("n_core", -1),
@@ -127,7 +127,7 @@ def _select(payload: dict, data: tuple, profile: TaskProfile):
 
 
 def _ranking_row(r: dict, metric: str) -> dict:
-    """One summary.json row: the scores of a configuration and the configuration."""
+    """One summary.json row - configuration and its scores"""
     sources = {
         "train_error": "train_error", "val_error": "val_error",
         "train_mean": f"train_{metric}_mean", "train_std": f"train_{metric}_std",
@@ -151,7 +151,7 @@ def _ranking_row(r: dict, metric: str) -> dict:
 
 
 def _assess(payload: dict, data: tuple, profile: TaskProfile):
-    """Retrain the chosen config and evaluate it once on the held-out test set."""
+    """Retrain the chosen config and evaluate it once on the test set"""
     X_design, y_design, X_test, y_test = data
     name = profile.primary
     score_fn = profile.metrics[name]
@@ -189,7 +189,7 @@ def _assess(payload: dict, data: tuple, profile: TaskProfile):
                     "cv_stop_final_errors", "epochs_run"):
             table[key] = summary[key]
 
-    # The held-out curves of an assessment are on the test set: name them test_*.
+    # in assess the held-out curves are on the test set - rename val_* to test_*
     history = {("test_" + key[len("val_"):] if key.startswith("val_") else key): values
                for key, values in histories[summary["representative_trial"]].items()}
     return table, history

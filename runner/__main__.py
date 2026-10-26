@@ -1,4 +1,4 @@
-"""CLI: runs an experiment from a JSON config file.
+"""CLI: run an experiment from a JSON config file
 
 Usage:
     python -m runner --config configs/monk1/monk1_assess_model.json

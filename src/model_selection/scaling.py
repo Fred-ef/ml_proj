@@ -1,4 +1,4 @@
-"""Prepare a training split and evaluate scaled targets in original units."""
+"""Scale a training split and score scaled targets in the original units"""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ def prepare_split(
     classification: bool,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray | None, np.ndarray | None,
            StandardScaler | None]:
-    """Fit scalers on training data only; leave MONK's binary data untouched."""
+    """Fit the scalers on the training data only; MONK data is never scaled"""
     if classification and scale:
         raise ValueError("scaling MONK data is unsupported; use scale=False")
     if not scale:
@@ -38,7 +38,7 @@ def prepare_split(
 
 
 def original_target_metric(metric_fn: Callable, scaler_y: StandardScaler | None) -> Callable:
-    """Score scaled predictions and targets in their original target units."""
+    """Wrap metric_fn so that it scores in the original target units"""
     if scaler_y is None:
         return metric_fn
 

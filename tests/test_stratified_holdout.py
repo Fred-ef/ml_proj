@@ -1,4 +1,4 @@
-"""Stratified validation splits for classification workflows."""
+"""Stratified validation splits for classification workflows"""
 
 import json
 

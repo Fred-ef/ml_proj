@@ -1,1 +1,1 @@
-"""Utilities: metrics (MEE/MSE/accuracy) and plotting (B/W-friendly curves)."""
+"""Metrics, learning curves, seeding, parallel execution and run saving"""

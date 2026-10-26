@@ -1,12 +1,8 @@
-"""Experiment logging & reproducibility utilities.
+"""Saving runs to disk
 
-One run = one directory under `results/<task>/<run_id>/` holding:
-- config + environment
-- final metrics
-- mean/std over trials
-- per-epoch curves
-
-An append-only aggregate provides one row per run as the comparison table.
+Each run gets a directory `results/<task>/<run_id>/` with config and environment,
+summary (final metrics, mean/std over trials) and per-epoch curves.
+`index.jsonl` gets one row per run, to compare them
 """
 
 from __future__ import annotations
@@ -41,8 +37,7 @@ def _dump_json(path: Path, obj) -> None:
 
 # ----------------------------------------------------- environment / reproducibility
 def capture_env() -> dict:
-    """Snapshot of the environment: enables reproducibility of a run and provides
-    training time & machine info"""
+    """Timestamp, library versions and machine of a run"""
     return {
         "timestamp": datetime.now().isoformat(timespec="seconds"),
         "python": sys.version.split()[0],
@@ -54,10 +49,9 @@ def capture_env() -> dict:
 
 # --------------------------------------------------------------- run id / directories
 def make_run_id(tag: str, seed: int | None = None) -> str:
-    """e.g. '2026-06-30_143012_483_baseline'.
+    """Run id like '2026-06-30_143012_483_baseline', sortable by time
 
-    Chronologically sortable, human-readable, millisecond-resolution so two
-    rapid successive calls don't collide.
+    The milliseconds keep two quick calls from colliding
     """
     now = datetime.now()
     rid = f"{now:%Y-%m-%d_%H%M%S}_{now.microsecond // 1000:03d}_{tag}"
@@ -65,7 +59,7 @@ def make_run_id(tag: str, seed: int | None = None) -> str:
 
 
 def new_run_dir(results_root: str | Path, task: str, tag: str, seed: int | None = None) -> Path:
-    """Create and return ``<results_root>/<task>/<run_id>/`` (parents included)."""
+    """Create and return ``<results_root>/<task>/<run_id>/`` (parents included)"""
     run_dir = Path(results_root) / task / make_run_id(tag, seed)
     run_dir.mkdir(parents=True, exist_ok=True)
     return run_dir
@@ -73,7 +67,7 @@ def new_run_dir(results_root: str | Path, task: str, tag: str, seed: int | None 
 
 # ------------------------------------------------------------------- writing a run
 def write_history_csv(path: str | Path, history: dict) -> None:
-    """history -> CSV with an 'epoch' column plus one column per full-length metric.
+    """history -> CSV with an 'epoch' column plus one column per full-length metric
 
     Empty metrics are skipped so the table stays rectangular
     """
@@ -99,7 +93,7 @@ def save_run(run_dir: str | Path, config: dict, summary: dict,
 
 
 def save_grid_curves(run_dir: str | Path, curves: list[dict]) -> Path:
-    """Write curves.json: one entry per configuration, in ranking order."""
+    """Write curves.json: one entry per configuration, in ranking order"""
     path = Path(run_dir) / "curves.json"
     _dump_json(path, [{"rank": rank, **entry} for rank, entry in enumerate(curves, start=1)])
     return path
@@ -119,7 +113,7 @@ def flatten(d: dict, parent: str = "", sep: str = ".") -> dict:
 
 
 def append_index(index_jsonl: str | Path, row: dict) -> None:
-    """Append ONE JSON line to the index"""
+    """Append one JSON line to the index"""
     index_jsonl = Path(index_jsonl)
     index_jsonl.parent.mkdir(parents=True, exist_ok=True)
     with open(index_jsonl, "a") as f:
@@ -127,7 +121,7 @@ def append_index(index_jsonl: str | Path, row: dict) -> None:
 
 
 def index_to_csv(index_jsonl: str | Path, csv_path: str | Path | None = None):
-    """Regenerates an index.csv from the .jsonl"""
+    """Regenerate index.csv from the .jsonl"""
     import pandas as pd
     df = pd.read_json(index_jsonl, lines=True)
     if csv_path is None:

@@ -1,12 +1,8 @@
-"""Multi-seed training + assessment.
+"""Repeated training of one configuration (train and assess modes)
 
-Trains one configuration on ``n_trials`` different seeds and aggregates the
-scores (mean/std) so results are reported over trials rather than from a single
-lucky/unlucky run. Used by the CLI runner (train and assess modes) and
-kept independent of any single experiment.
-
-The score to aggregate is injected as ``score_fn``/``score_name`` (accuracy for
-MONK, MEE for CUP), so this module never hardcodes a task-specific metric.
+The configuration is trained with ``n_trials`` seeds and the scores are reported
+as mean and std over the trials. The score is passed as ``score_fn``/``score_name``
+(accuracy for MONK, MEE for CUP)
 """
 
 from __future__ import annotations
@@ -23,7 +19,7 @@ from ..utils.seeding import SEED_SCHEME, derive_seed, resolve_seed
 
 def run_trials(config: dict, X_tr, y_tr, X_te, y_te, metrics: dict,
                score_fn, score_name: str, *, stage: str = "assess") -> tuple[dict, list[dict]]:
-    """Run repeated training. Only assess scores on the held-out test set."""
+    """Train n_trials times; only the assess stage scores on the test set"""
     if stage not in ("train", "assess"):
         raise ValueError(f"unknown trial stage: {stage!r}")
     n_trials  = config.get("n_trials", 5)
@@ -72,8 +68,8 @@ def run_trials(config: dict, X_tr, y_tr, X_te, y_te, metrics: dict,
             scale=bool(config.get("scale")),
             classification=score_name == "acc" or str(config.get("task", "")).startswith("monk"))
 
-        # The training loss uses scaled targets. Reported metrics use original
-        # target units; CUP uses that same metric for a training target.
+        # The loss uses scaled targets, the reported metrics the original units
+        # (also used by CUP's training target)
         fit_metrics = {name: original_target_metric(fn, scaler_Y)
                        for name, fn in metrics.items()}
         if use_validation or target is not None:
@@ -81,8 +77,8 @@ def run_trials(config: dict, X_tr, y_tr, X_te, y_te, metrics: dict,
 
         model = build_model(cfg_i)
 
-        # Validation early stopping belongs to train mode. Assessment can
-        # instead stop when the full-design training error reaches a CV target.
+        # Early stopping only in train mode; assess can instead stop when the
+        # training error on the whole design set reaches the CV target
         es = (EarlyStopping(patience=patience,
                             min_delta=cfg_i.get("min_delta") or 0.0,
                             monitor="val_loss" if score_name == "acc" else f"val_{score_name}",
@@ -91,8 +87,8 @@ def run_trials(config: dict, X_tr, y_tr, X_te, y_te, metrics: dict,
                             else "min")
               if patience is not None else None)
 
-        # Assessment records the test curve, but the target checks only a
-        # training metric. No stopping decision depends on the test set.
+        # The test curve is only recorded: the target checks a training metric,
+        # so no stopping decision depends on the test set
         fit_kwargs = dict(epochs=cfg_i["epochs"], batch_size=cfg_i.get("batch_size"),
                           validation_data=((X_ev_i, y_ev_i) if X_ev_i is not None else None),
                           metrics=fit_metrics, early_stopping=es)
@@ -113,7 +109,7 @@ def run_trials(config: dict, X_tr, y_tr, X_te, y_te, metrics: dict,
         pred_ev = model.predict(X_ev_i) if X_ev_i is not None else None
         
         # Se abbiamo scalato le Y, per calcolare il vero score_fn (MEE) dobbiamo 
-        # invertire la trasformazione per tornare alla scala originale.
+        # invertire la trasformazione per tornare alla scala originale
         if scaler_Y is not None:
             pred_tr = scaler_Y.inverse_transform(pred_tr)
             if pred_ev is not None:

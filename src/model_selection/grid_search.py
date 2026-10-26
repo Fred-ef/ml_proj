@@ -1,4 +1,4 @@
-"""Grid search with either holdout or k-fold validation."""
+"""Grid search with either holdout or k-fold validation"""
 
 from __future__ import annotations
 
@@ -17,22 +17,19 @@ from .kfold import cross_validate
 
 
 def iter_grid(param_grid: dict[str, Iterable]):
-    """Yield dict configs as the Cartesian product of the grid values."""
+    """Yield dict configs as the Cartesian product of the grid values"""
     keys = list(param_grid)
     for combo in product(*(param_grid[k] for k in keys)):
         yield dict(zip(keys, combo))
 
 
 def _evaluate_config(position, build_model, config, X, Y, k, seed, metric, split, n_trials):
-    """Evaluate one configuration using the selected validation strategy.
+    """Evaluate one configuration with holdout or k-fold validation
 
     The configuration is trained ``n_trials`` times with different weight
-    initializations on the same split; scores are aggregated over the trials.
-
-    Defined at module level (not a closure/lambda) so it is picklable and can be
-    shipped to a worker process. Pure function of its arguments: same inputs ->
-    same output, which is what makes the parallel and sequential paths return
-    identical results.
+    initializations on the same split, and the scores are aggregated over the
+    trials. Module-level so it can be pickled for the worker processes; it only
+    depends on its arguments, so parallel and sequential runs give the same results
     """
     train_scores, val_scores = [], []
     train_curves, val_curves = [], []
@@ -107,11 +104,9 @@ def _evaluate_config(position, build_model, config, X, Y, k, seed, metric, split
 
 
 def trial_statistics(scores) -> dict:
-    """Statistics of a (T, F) table: one selected score per (trial, fold).
+    """Statistics of a (T, F) table with one score per (trial, fold)
 
-    F = 1 for holdout.
-    Rows = initializations.
-    Columns = folds.
+    Rows are initializations, columns are folds (F = 1 for holdout)
     """
     S = np.asarray(scores, dtype=float)
     T, F = S.shape
@@ -129,14 +124,12 @@ def grid_search(param_grid: Mapping[str, Iterable] | Iterable[dict], build_model
                 seed: int | None = None, metric: str = "loss",
                 n_core: int | None = 1, val_fraction: float | None = None,
                 n_trials: int = 1, stratify: bool = False):
-    """Evaluate every config and return a ranking and reproducible seed plan.
+    """Evaluate every config, return the ranking and the seed plan
 
-    Accept a legacy mapping of grid axes or an iterable of complete configs.
-    ``k=None`` uses one shared holdout split (20% validation by default).
-    ``k>=2`` uses k-fold CV and does not create a holdout split.
-
-    n_core: worker processes to use — 1/None sequential (default, like sklearn's
-    GridSearchCV); -1 all cores; -2 all but one; N a fixed count.
+    param_grid is a mapping of grid axes or an iterable of complete configs.
+    ``k=None`` uses one shared holdout split (20% validation by default),
+    ``k>=2`` uses k-fold CV. n_core: 1/None sequential (default), -1 all cores,
+    -2 all but one, N a fixed number of processes
     """
     if metric != "loss" and metric not in METRICS:
         raise ValueError(f"Unknown metric: {metric!r}")

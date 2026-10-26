@@ -1,4 +1,4 @@
-"""Validation metrics and scaling stay in the same units across workflows."""
+"""Validation metrics and scaling stay in the same units across workflows"""
 
 import numpy as np
 import pytest
@@ -15,7 +15,7 @@ Y = np.array([[-100.0, -1.0], [100.0, 1.0], [0.0, 0.0]])
 
 
 class TwoEpochModel:
-    """Produce errors that rank in opposite orders before/after target scaling."""
+    """Produce errors that rank in opposite orders before/after target scaling"""
 
     def fit(self, x_train, y_train, *, validation_data, metrics, early_stopping, **_):
         assert early_stopping.monitor == "val_mee"
@@ -23,7 +23,7 @@ class TwoEpochModel:
         y_val = validation_data[1]
         score = metrics["mee"]
         # Standardized errors [0.2, 0] and [0, 1] correspond to original
-        # errors [20, 0] and [0, 1]. Original-unit MEE selects epoch 2.
+        # errors [20, 0] and [0, 1]. Original-unit MEE selects epoch 2
         offsets = (np.array([[0.2, 0.0]]), np.array([[0.0, 1.0]]))
         val_scores = [score(y_val + offset, y_val) for offset in offsets]
         train_scores = [score(y_train + offset, y_train) for offset in offsets]

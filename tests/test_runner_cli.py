@@ -1,4 +1,4 @@
-"""Tests for the command-line runner's result display."""
+"""Tests for the command-line runner's result display"""
 
 import sys
 from unittest.mock import Mock

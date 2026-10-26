@@ -1,7 +1,7 @@
-"""Ranking ties: configurations with the same validation score are ordered by validation loss.
+"""Configurations with the same validation score are ordered by validation loss
 
-When the accuracy saturates (several configurations at 100% on MONK2), the grid order used to
-decide. The mean validation loss at the selected epoch breaks those ties instead.
+This matters when the accuracy saturates (several configurations at 100% on MONK2):
+the ties are broken by the mean validation loss at the selected epoch
 """
 
 import json
@@ -17,7 +17,7 @@ from runner.show_grid_search import format_select_summary
 
 def _fake_holdout(build_model, config, X, Y, train_idx, val_idx, seed=None, metric="loss",
                   trial=0):
-    """One run per trial: the config says its accuracy and its validation-loss curve."""
+    """One run per trial: the config says its accuracy and its validation-loss curve"""
     acc = config["acc"][trial] if isinstance(config["acc"], list) else config["acc"]
     curve = config["val_loss"][trial] if isinstance(config["val_loss"][0], list) else config["val_loss"]
     epoch = config.get("best", [len(curve)] * 10)[trial]
@@ -46,7 +46,7 @@ def test_ties_in_accuracy_are_broken_by_the_lower_validation_loss(monkeypatch):
 
 
 def test_the_selection_metric_still_comes_first(monkeypatch):
-    # The loss only breaks ties: a better accuracy wins even with a worse loss.
+    # The loss only breaks ties: a better accuracy wins even with a worse loss
     configs = [{"name": "low loss", "acc": 0.99, "val_loss": [0.25, 0.0001]},
                {"name": "high acc", "acc": 1.00, "val_loss": [0.25, 0.0200]}]
 
@@ -56,8 +56,8 @@ def test_the_selection_metric_still_comes_first(monkeypatch):
 
 
 def test_the_validation_loss_is_read_at_the_selected_epoch_and_averaged_over_the_runs(monkeypatch):
-    # Trial 0 selects epoch 2 (0.1), trial 1 selects epoch 3 (0.6): mean 0.35.
-    # The last value of each curve (0.3 and 0.6) would give 0.45 instead.
+    # Trial 0 selects epoch 2 (0.1), trial 1 selects epoch 3 (0.6): mean 0.35,
+    # while the last value of each curve (0.3 and 0.6) would give 0.45
     configs = [{"name": "a", "acc": 1.0, "best": [2, 3],
                 "val_loss": [[0.5, 0.1, 0.3], [0.4, 0.2, 0.6]]}]
 
@@ -91,7 +91,7 @@ def test_kfold_averages_the_validation_loss_over_folds_and_trials(monkeypatch):
 
 def test_rounding_noise_in_the_validation_score_does_not_break_a_tie(monkeypatch):
     # Same five per-trial accuracies, in a different order: the mean differs in the last
-    # digit (about 1e-16). Without rounding, that noise would decide instead of the loss.
+    # digit (about 1e-16). Without rounding, that noise would decide instead of the loss
     order_a = [28 / 34, 28 / 34, 28 / 34, 28 / 34, 29 / 34]
     order_b = [28 / 34, 28 / 34, 28 / 34, 29 / 34, 28 / 34]
     assert 1.0 - np.mean(order_a) != 1.0 - np.mean(order_b)        # the noise is real
@@ -139,7 +139,7 @@ def test_report_of_an_older_summary_without_the_validation_loss_still_works(tmp_
                              results_root=tmp_path)
     summary = json.loads((run_dir / "summary.json").read_text())
     for row in summary["ranking"]:
-        del row["val_data_loss"]                             # as in summaries saved before
+        del row["val_data_loss"]                             # like older summaries
 
     report = format_select_summary(summary)
 

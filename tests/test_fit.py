@@ -1,11 +1,5 @@
-"""fit training loop
-
-The overfit test is the headline.  We also check the history contract,
-reproducibility, the regularizer effect, and the early-stopping hook (which
-cross_validate relies on)
-
-Run from the project root:  pytest tests/test_fit.py -v
-"""
+"""fit: overfitting a small set, history, reproducibility, regularization, early
+stopping and batching"""
 
 import numpy as np
 import pytest
@@ -39,7 +33,7 @@ def small_data(seed: int = 0, n: int = 5):
 def test_fit_overfits_small_dataset():
     X, Y = small_data()
     hist = overfit_net().fit(X, Y, epochs=3000)
-    assert hist["loss"][-1] < hist["loss"][0] / 50      # loss crashes down -> it learns
+    assert hist["loss"][-1] < hist["loss"][0] / 50      # the loss drops
 
 
 def test_fit_loss_decreases():
@@ -91,7 +85,7 @@ def test_fit_with_l2_keeps_weights_smaller():
     assert norm_reg < norm_plain        # L2 = weight decay -> smaller weights
 
 
-# --- early-stopping hook (passed by cross_validate) -------------------------
+# --- early stopping ---------------------------------------------------------
 
 def test_fit_accepts_and_honors_early_stopping():
     X, Y = small_data()
@@ -103,12 +97,11 @@ def test_fit_accepts_and_honors_early_stopping():
 
 
 # --- batching: full-batch / mini-batch / online -----------------------------
-# One parameter (batch_size) drives all three modes: None -> full-batch,
-# m -> mini-batch, 1 -> online. These guard the two bugs we hit during F2:
-# updating only the last batch, and logging once per *batch* instead of *epoch*.
+# batch_size: None -> full-batch, m -> mini-batch, 1 -> online. These catch an
+# update made only on the last batch and a history logged per batch, not per epoch
 
 def count_updates_per_epoch(net: Network, X, Y, batch_size) -> int:
-    """Run one epoch and count how many times the optimizer steps."""
+    """Run one epoch and count how many times the optimizer steps"""
     calls = {"n": 0}
     inner = net.optimizer.step
     net.optimizer.step = lambda p, g: (calls.__setitem__("n", calls["n"] + 1),
@@ -140,7 +133,7 @@ def test_fit_history_has_one_entry_per_epoch_in_every_mode(batch_size):
 def test_fit_minibatch_and_online_overfit(batch_size):
     X, Y = small_data(n=12)
     # Gentler lr than the full-batch tests: with N=12, online does ~N more
-    # updates per epoch, so overfit_net's lr=0.05 would overshoot and diverge.
+    # updates per epoch, so overfit_net's lr=0.05 would overshoot and diverge
     net = Network(
         layers=[Dense(3, 16, Tanh(), Uniform(0.5)),
                 Dense(16, 2, Identity(), Uniform(0.5))],
@@ -159,9 +152,8 @@ def test_fit_is_reproducible_in_every_mode(batch_size):
 
 
 def test_fit_fullbatch_none_matches_batch_size_n():
-    # Non-regression: batch_size=None and batch_size=N are the same mode.
-    # The per-epoch shuffle reorders examples but the full-batch gradient is a
-    # sum over all of them, so it is order-independent: results must coincide.
+    # batch_size=None and batch_size=N are the same mode: the shuffle changes the
+    # order, but the full-batch gradient sums over all the examples
     X, Y = small_data(n=12)
     h_none = overfit_net(seed=7).fit(X, Y, epochs=100, batch_size=None)
     h_full = overfit_net(seed=7).fit(X, Y, epochs=100, batch_size=12)

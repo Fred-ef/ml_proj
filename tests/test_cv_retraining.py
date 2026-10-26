@@ -1,4 +1,4 @@
-"""Final retraining stops on the CV training-error target, with epochs as a cap."""
+"""Final retraining stops on the CV training-error target, with epochs as a cap"""
 
 import numpy as np
 import pytest

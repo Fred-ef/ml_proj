@@ -1,4 +1,4 @@
-"""Shared generalized execution engine"""
+"""Run an experiment and save its results"""
 
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ def run_experiment(
     tag: str = "run",
     results_root: str | Path | None = None,
 ) -> Path:
-    """Runs an experiment and returns its run_dir."""
+    """Run an experiment and return its run_dir"""
     if mode not in MODES:
         raise ValueError(f"Unknown mode: {mode!r} (expected: {list(MODES)})")
 
@@ -51,7 +51,7 @@ def run_experiment(
 
     run_dir = new_run_dir(results_root, task, tag, master_seed)
 
-    # config.json keeps track of task/mode/tag: full provenance of the run
+    # config.json also records task, mode and tag
     saved_config = {"task": task, "mode": mode, "tag": tag,
                     **model_payload, "seed_source": seed_source}
     if profile.internal_test_split is not None:
@@ -62,7 +62,7 @@ def run_experiment(
     save_run(run_dir, saved_config, summary, history=history)
 
     if history is not None:
-        # assess: training against the test set; train: against its validation split.
+        # assess: training against the test set; train: against its validation split
         plot_learning_curve(
             history, profile.primary,
             save_path=str(run_dir / "learning_curve.png"),
@@ -72,7 +72,7 @@ def run_experiment(
 
     if curves is not None:
         save_grid_curves(run_dir, curves)
-        # null or missing = plot the first 10 configurations; 0 = no plots.
+        # null or missing = plot the first 10 configurations; 0 = no plots
         top = model_payload.get("plot_top")
         _plot_grid_curves(run_dir, task, profile.primary, summary["ranking"], curves,
                           top=10 if top is None else top)
@@ -82,13 +82,13 @@ def run_experiment(
 
 
 def _loss_label(config: dict) -> str:
-    """Axis label of the loss: with scale=true it is measured on standardized targets."""
+    """Axis label of the loss: with scale=true it is measured on standardized targets"""
     return "MSE (standardized targets)" if config.get("scale") else "MSE"
 
 
 def _plot_grid_curves(run_dir: Path, task: str, metric: str, ranking: list[dict],
                       curves: list[dict], top: int) -> None:
-    """Band plot for each of the first `top` configurations, plus a comparison."""
+    """Band plot for each of the first `top` configurations, plus a comparison"""
     shown = min(top, len(ranking))
     if shown == 0:
         return
@@ -104,7 +104,7 @@ def _plot_grid_curves(run_dir: Path, task: str, metric: str, ranking: list[dict]
                              metric, save_path=str(plots / "top_val.png"),
                              title=f"{task.upper()} — mean validation curves of the top {shown}",
                              loss_label=_loss_label(ranking[0]["config"]))
-    # learning_curve.png: for a grid, a copy of the best configuration's plot.
+    # learning_curve.png: for a grid, a copy of the best configuration's plot
     shutil.copyfile(plots / "rank01.png", run_dir / "learning_curve.png")
 
 
@@ -124,9 +124,8 @@ def _append_index(results_root: Path, task: str, run_dir: Path, config: dict, su
 
 
 def _is_index_scalar(value) -> bool:
-    """Keep the index a flat comparison table: scalars and flat lists (e.g.
-    per-trial scores) belong in it; nested structures (a full ranking, a config
-    dict) do not — those live in the run's summary.json."""
+    """Scalars and flat lists go in the index; nested values (ranking,
+    config dict) in summary.json"""
     if isinstance(value, dict):
         return False
     if isinstance(value, list):

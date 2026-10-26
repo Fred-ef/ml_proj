@@ -1,4 +1,4 @@
-"""Checkpoint selection is distinct from the patience stopping criterion."""
+"""Checkpoint selection is distinct from the patience stopping criterion"""
 
 import numpy as np
 import pytest

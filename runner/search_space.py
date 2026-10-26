@@ -1,4 +1,4 @@
-"""Interpret compact model-selection ranges as concrete model configurations."""
+"""Expand compact search ranges into model configurations"""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ def _decimal(value, name: str) -> Decimal:
 
 
 def iter_values(spec: dict) -> Iterator[int | float]:
-    """Yield inclusive integer, linear, or geometric range values."""
+    """Yield the values of an int, linear or log range, endpoints included"""
     if not isinstance(spec, dict):
         raise ValueError("range specification must be an object")
     scale = spec.get("scale")
@@ -100,7 +100,7 @@ def iter_values(spec: dict) -> Iterator[int | float]:
 
 
 def iter_search_configs(fixed: dict, search: dict) -> Iterator[dict]:
-    """Yield complete build_model configurations directly from a compact search."""
+    """Yield complete build_model configurations from a compact search"""
     if not isinstance(fixed, dict) or not isinstance(search, dict):
         raise ValueError("fixed and search must be objects")
     common = {"hidden_activation", "output", "optimizer"}
@@ -177,7 +177,7 @@ def iter_search_configs(fixed: dict, search: dict) -> Iterator[dict]:
         rates = list(iter_values(rate_spec))
         if any(rate <= 0 for rate in rates):
             raise ValueError("learning rates must be positive")
-    # Null optional optimizer settings use the selected optimizer's defaults.
+    # null optimizer settings fall back to the optimizer defaults
     if "nesterov" in optimizer:
         raise ValueError("nesterov must be set inside search.optimizer.momentum")
     momentum_spec = optimizer.get("momentum")

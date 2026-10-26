@@ -1,5 +1,4 @@
-"""Grid search over several weight initializations: statistics, curves and report
-"""
+"""Grid search with several weight initializations: statistics, curves and report"""
 
 import json
 
@@ -80,7 +79,7 @@ def test_grid_search_repeats_each_config_over_initializations(monkeypatch):
     assert best["val_loss_mean"] == best["val_error"] == pytest.approx(0.01)
     assert best["val_loss_init_var"] == pytest.approx(2 / 3 * 1e-4)
     assert best["curves"]["val"]["mean"] == pytest.approx([1.0, 0.01])
-    # The loss curves are aggregated on their own, apart from the metric curves.
+    # loss curves are aggregated separately from the metric curves
     assert best["curves"]["loss"]["val"]["mean"] == pytest.approx([4.0, 0.01])
     assert best["curves"]["loss"]["train"]["mean"] == pytest.approx([3.0, 0.005])
     assert best["curves"]["loss"]["val"]["n_alive"] == [3, 3]

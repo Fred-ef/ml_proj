@@ -1,5 +1,5 @@
-"""Two-panel plots in the style of the report figures: MSE on the left, the task metric
-on the right, training as a solid line and validation (or test) as a dashed one."""
+"""Two-panel plots: MSE on the left, task metric on the right, training as a solid
+line and validation (or test) as a dashed one"""
 
 from matplotlib.colors import to_hex
 
@@ -84,7 +84,7 @@ def test_grid_plot_draws_mean_curves_with_a_band_in_the_same_style():
 
 
 def test_grid_plot_with_early_stopping_shows_only_the_two_curves_and_their_bands():
-    # Some runs stop after epoch 2: no shaded region, no selected-epoch line.
+    # some runs stop after epoch 2: still no shaded region or selected-epoch line
     curves = _curves([0.25, 0.10, 0.08], [0.25, 0.15, 0.2], [0.5, 0.8, 0.9], [0.4, 0.7, 0.6])
     for curve in (curves["val"], curves["loss"]["val"]):
         curve["n_alive"] = [3, 3, 1]

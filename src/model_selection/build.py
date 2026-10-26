@@ -1,8 +1,7 @@
-"""Model factory: build a Network from a plain config dict.
+"""Build a Network from a config dict
 
-Maps the string keys in a config (e.g. "tanh", "sgd", "l2") to the
-corresponding classes and assembles a new Network — new weights and a new
-optimizer on every call — each k-fold / trial starts from a clean state
+Every call creates new weights and a new optimizer, so each fold or trial
+starts from a clean state
 """
 
 from ..nn.layer import Dense
@@ -14,7 +13,7 @@ from ..nn.optimizers import SGD
 from ..nn.rates import LinearDecay
 from ..nn.regularizers import L2, L1
 
-# Dispatch: config strings -> classes
+# config strings -> classes
 _ACT  = {"identity": Identity, "sigmoid": Sigmoid, "tanh": Tanh, "relu": ReLU}
 _INIT = {"uniform": Uniform, "glorot": Glorot, "he": He}
 _LOSS = {"mse": MSE}
@@ -24,7 +23,7 @@ _LR_SCHEDULES = {"linear_decay": LinearDecay}
 
 
 def build_model(config: dict) -> Network:
-    """Costruisce una Network FRESCA (pesi + optimizer nuovi) da una config."""
+    """Costruisce una Network FRESCA (pesi + optimizer nuovi) da una config"""
     n_in = config["n_inputs"]
     layers = []
     for spec in config["arch"]:

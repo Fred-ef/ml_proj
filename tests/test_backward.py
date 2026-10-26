@@ -1,11 +1,8 @@
-"""backward + gradient_check
+"""backward and gradient_check
 
-The key test is the gradient check: it compares the analytic gradient (from
-backward) with the numerical one (finite differences). If it passes, the
-backpropagation is correct. We check it across activations and depths, verify
-the shapes, a hand-computed case, and that the check rejects a wrong gradient
-
-Run from the project root: pytest tests/test_backward.py -v
+The gradient check compares the backprop gradient with finite differences,
+across activations and depths. Also: shapes, a case computed by hand, and a
+wrong gradient that the check must reject
 """
 
 import numpy as np
@@ -35,7 +32,7 @@ def test_dense_backward_shapes():
 # --- backward: exact math (Identity => sigma'=1 => pure affine) -------------
 
 def test_dense_backward_identity_exact():
-    """With Identity sigma'(z)=1, so delta=grad_out: the math is done by hand."""
+    """With Identity sigma'(z) = 1, so delta = grad_out and the result is computed by hand"""
     layer = Dense(2, 3, Identity(), Uniform(0.1))
     layer.build(np.random.default_rng(0))
     layer.W = np.array([[1.0, 0.0, 2.0],
@@ -55,7 +52,7 @@ def test_dense_backward_identity_exact():
                                          [16.0, 11.0]])
 
 
-# --- gradient check: the key test -------------------------------------------
+# --- gradient check ---------------------------------------------------------
 
 def _two_layer_net(hidden_act, seed=0):
     return Network(
@@ -75,7 +72,7 @@ def test_gradient_check_passes_for_each_activation(act):
 
 
 def test_gradient_check_passes_for_deep_network():
-    """Check the chain rule across several hidden layers."""
+    """Check the chain rule across several hidden layers"""
     net = Network(
         layers=[Dense(3, 5, Tanh(), Uniform(0.5)),
                 Dense(5, 4, Tanh(), Uniform(0.5)),
@@ -88,10 +85,10 @@ def test_gradient_check_passes_for_deep_network():
     assert net.gradient_check(X, Y) < 1e-6
 
 
-# --- meta-test: the gradient check must have teeth --------------------------
+# --- the gradient check must catch a wrong backward -------------------------
 
 class _WrongDense(Dense):
-    """A Dense whose backward returns a wrong (doubled) dW."""
+    """A Dense whose backward returns a wrong (doubled) dW"""
     def backward(self, grad_out):
         dA_prev = super().backward(grad_out)
         self.dW = self.dW * 2.0        # deliberate bug
@@ -99,7 +96,7 @@ class _WrongDense(Dense):
 
 
 def test_gradient_check_catches_a_wrong_gradient():
-    """If backward is wrong, the check must NOT pass (large rel_err)."""
+    """A wrong backward must fail the check (large rel_err)"""
     net = Network(
         layers=[_WrongDense(3, 4, Tanh(), Uniform(0.5)),
                 Dense(4, 2, Identity(), Uniform(0.5))],

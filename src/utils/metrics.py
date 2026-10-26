@@ -1,9 +1,8 @@
-"""Evaluation metrics.
+"""Evaluation metrics
 
-    - mee : Mean Euclidean Error, reported in the original target scale.
-            MEE = mean_p sqrt( sum_k (o_pk - t_pk)^2 )
-    - mse : Mean Squared Error.
-    - accuracy : for MONK (sigmoid output thresholded at 0.5).
+    - mee: Mean Euclidean Error, mean_p sqrt(sum_k (o_pk - t_pk)^2)
+    - mse: mean per-sample sum of squared errors
+    - accuracy: for MONK, output thresholded at 0.5
 """
 
 from __future__ import annotations
@@ -18,19 +17,17 @@ def mee(y_pred: np.ndarray, y_true: np.ndarray) -> float:
 
 
 def mse(y_pred: np.ndarray, y_true: np.ndarray) -> float:
-    """Mean per-sample sum of squared errors."""
+    """Mean per-sample sum of squared errors"""
     return float(np.sum((y_pred - y_true) ** 2) / y_pred.shape[0])
 
 
 def accuracy(y_pred: np.ndarray, y_true: np.ndarray, threshold: float = 0.5) -> float:
-    """Binary accuracy for MONK."""
+    """Binary accuracy for MONK"""
     predicted = (y_pred >= threshold)
     target = (y_true >= 0.5) # targets are already binary
     return float(np.mean(predicted == target))
 
-# Selection metrics: name -> (function, greater_is_better).
-# Binds a metric name to its function and to the "better" direction.
-# Used by cross_validate / grid_search to rank configs
+# name -> (function, greater_is_better), used to rank configurations
 METRICS = {
     "mee": (mee, False),   # lower is better
     "mse": (mse, False),   # lower is better

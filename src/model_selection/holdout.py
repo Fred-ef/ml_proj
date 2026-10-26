@@ -1,4 +1,4 @@
-"""Evaluate one configuration on a single, shared training/validation split."""
+"""Evaluate one configuration on a single shared training/validation split"""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from .scaling import original_target_metric, prepare_split
 
 def holdout_indices(n_samples: int, val_fraction: float, seed: int | None = None,
                     *, stratify_labels=None):
-    """Return train/validation indices, optionally preserving class proportions."""
+    """Return train/validation indices, optionally keeping the class proportions"""
     if n_samples < 2:
         raise ValueError("holdout requires at least two samples")
     if not 0 < val_fraction < 1:
@@ -38,8 +38,8 @@ def holdout_indices(n_samples: int, val_fraction: float, seed: int | None = None
     if n_val < n_classes or n_samples - n_val < n_classes:
         raise ValueError("stratified holdout needs room for every class in both splits")
 
-    # Allocate exactly n_val samples. Start near the proportional quotas, then
-    # correct rounding while keeping at least one sample of each class per split.
+    # Exactly n_val samples: start from the proportional quotas, then fix the
+    # rounding keeping at least one sample of each class in both splits
     quotas = counts * (n_val / n_samples)
     val_counts = np.clip(np.floor(quotas).astype(int), 1, counts - 1)
     while val_counts.sum() < n_val:
@@ -62,7 +62,7 @@ def holdout_indices(n_samples: int, val_fraction: float, seed: int | None = None
 
 def holdout_validate(build_model, config: dict, X, Y, train_idx, val_idx,
                      seed: int | None = None, metric: str = "loss", trial: int = 0) -> dict:
-    """Train once; use the final epoch unless early stopping is enabled."""
+    """Train once; score the final epoch, or the early stopping checkpoint"""
     if metric == "loss":
         metric_fn, greater_is_better = None, False
         train_key, val_key = "loss", "val_loss"
@@ -80,9 +80,8 @@ def holdout_validate(build_model, config: dict, X, Y, train_idx, val_idx,
     report_fn = metric_fn
     report_name = metric if metric_fn else None
     if scaler_Y is not None:
-        # Model.fit operates on scaled targets. Report model-selection errors in
-        # the original units so configurations with and without scaling remain
-        # comparable. The optimizer still uses its ordinary training loss.
+        # fit trains on scaled targets, but selection errors are reported in the
+        # original units so runs with and without scaling stay comparable
         original_fn = metric_fn if metric_fn else METRICS["mse"][0]
         report_fn = original_target_metric(original_fn, scaler_Y)
         if metric == "loss":
@@ -116,8 +115,7 @@ def holdout_validate(build_model, config: dict, X, Y, train_idx, val_idx,
     else:
         pick = np.argmax if early_stopping.mode == "max" else np.argmin
         selected_idx = int(pick(history[early_stopping.monitor]))
-    # Keep the existing summary keys: without early stopping they now refer
-    # to the final epoch, not an earlier validation peak.
+    # without early stopping these keys refer to the final epoch
     return {
         f"train_{metric}_mean": float(history[train_key][selected_idx]),
         f"train_{metric}_std": None,

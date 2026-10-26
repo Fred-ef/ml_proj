@@ -1,8 +1,8 @@
-"""Select a validation checkpoint and stop after enough insignificant epochs.
+"""Select a validation checkpoint and stop after enough epochs without improvement
 
-The best checkpoint is the strict optimum of the monitored metric. ``min_delta``
-only controls when the patience counter is reset; a smaller real improvement
-can still become the selected checkpoint.
+The checkpoint is the strict optimum of the monitored metric. ``min_delta`` only
+controls when the patience counter is reset, so a smaller improvement can still
+become the selected checkpoint
 """
 
 from __future__ import annotations
@@ -36,7 +36,7 @@ class EarlyStopping:
         self.reset()
 
     def reset(self) -> None:
-        """Clear state before a new fit."""
+        """Clear the state before a new fit"""
         self.best_value: float | None = None
         self.best_epoch: int | None = None  # one-based; ties retain the first
         self._patience_best: float | None = None
@@ -49,10 +49,10 @@ class EarlyStopping:
         return candidate > reference + delta
 
     def should_stop(self, val_history: list[float]) -> bool:
-        """Observe the last metric value and return whether patience expired.
+        """Observe the last metric value and return whether patience expired
 
-        ``improved`` is true when the current epoch has a new strict optimum,
-        even if that improvement is too small to reset patience.
+        ``improved`` is true when the current epoch is a new strict optimum,
+        even if the improvement is too small to reset patience
         """
         self.improved = False
         if not val_history:

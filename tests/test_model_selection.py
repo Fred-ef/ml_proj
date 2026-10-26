@@ -1,12 +1,4 @@
-"""Model-selection tests: k-fold CV, grid search, and multi-seed trials
-
-- Selection metrics registry (name -> function + "better" direction)
-- cross_validate's final-epoch and metric-directed epoch selection
-- grid_search's declarative nested grid
-- run_trials' seed aggregation + early stopping
-
-Run from the project root: pytest tests/test_model_selection.py -v
-"""
+"""Model selection: metrics registry, k-fold CV, grid search and repeated trials"""
 
 import time
 from pathlib import Path
@@ -87,7 +79,7 @@ def test_scheduled_lr_object_receives_steps_per_epoch_from_fit():
     assert model.optimizer.lr.steps_per_epoch == 3    # 30 samples / batch_size 10
 
 
-# --- METRICS registry (the single source of truth for name -> fn/direction) --
+# --- METRICS registry --------------------------------------------------------
 
 def test_metrics_registry_binds_name_to_function_and_direction():
     fn, greater_is_better = METRICS["mee"]
@@ -98,7 +90,7 @@ def test_metrics_registry_binds_name_to_function_and_direction():
     assert fn is accuracy and greater_is_better is True
 
 
-# --- cross_validate: default stays backward-compatible -----------------------
+# --- cross_validate: default metric ------------------------------------------
 
 def test_cross_validate_default_metric_is_loss():
     X, Y = regression_data()
@@ -112,9 +104,8 @@ def test_cross_validate_default_metric_is_loss():
 
 
 # --- cross_validate: epoch selection (deterministic, no training) ------------
-# fit is stubbed to return a fixed history curve so these pin the
-# last-epoch and argmax/argmin logic, independent of whether the tiny net
-# actually converges.
+# fit is stubbed with a fixed history, so these only test the choice of the
+# epoch (last one, argmax/argmin), not the training
 
 
 @pytest.mark.parametrize("metric, expected_train, expected_val", [
@@ -243,7 +234,7 @@ def test_holdout_selects_final_epoch_without_early_stopping_and_best_with_it(mon
     assert selected["epochs_run"] == [4]
 
 
-# --- cross_validate: real end-to-end wiring (metrics dict really reaches fit) -
+# --- cross_validate: the metrics dict reaches fit -----------------------------
 
 def test_cross_validate_real_training_exposes_the_requested_metric_in_history():
     X, y = classification_data()
@@ -271,7 +262,7 @@ def test_cross_validate_early_stopping_is_opt_in(monkeypatch):
     assert all(es is not None for es in seen_early_stopping), "'patience' in config => early stopping wired"
 
 
-# --- grid_search: declarative nested grid (Point 2 — no flat->nested bridge) -
+# --- grid_search: nested grid ------------------------------------------------
 
 def test_iter_grid_yields_cartesian_product_of_structured_axes():
     grid = {
@@ -300,7 +291,7 @@ def test_a_grid_combo_is_directly_build_model_ready_no_bridge_needed():
 
 
 def test_grid_search_supports_variable_architecture_depth():
-    """1 vs >=2 hidden layers as a grid axis (F5 requirement) — no special-casing."""
+    """1 vs >=2 hidden layers as a grid axis"""
     grid = {
         "arch": [
             [{"units": 4, "act": "tanh", "init": "uniform", "init_kwargs": {"scale": 0.3}},
@@ -346,11 +337,11 @@ def test_grid_search_ranks_descending_for_a_higher_is_better_metric():
     assert means == sorted(means, reverse=True)   # descending: highest accuracy (best) first
 
 
-# --- grid_search: optional parallelism (n_jobs) ------------------------------
+# --- grid_search: parallelism (n_core) ---------------------------------------
 
 def test_resolve_workers_maps_n_core_like_sklearn(monkeypatch):
     """n_core -> worker count: 1/None sequential, -1 all cores, -2 all-but-one,
-    capped at the number of tasks (never spawn idle workers)."""
+    capped at the number of tasks (never spawn idle workers)"""
     from src.utils import parallel
     monkeypatch.setattr(parallel.os, "cpu_count", lambda: 8)
     assert parallel.resolve_workers(1, 100) == 1        # explicit sequential
@@ -363,8 +354,7 @@ def test_resolve_workers_maps_n_core_like_sklearn(monkeypatch):
 
 
 def test_grid_search_parallel_matches_sequential_ranking():
-    """reproducibility invariant: same seed -> same rankings
-       n_core>1 must return the SAME ranking as n_core=1"""
+    """With the same seed, n_core > 1 gives the same ranking as n_core = 1"""
     grid = {
         "arch": [[{"units": 4, "act": "tanh", "init": "uniform", "init_kwargs": {"scale": 0.3}},
                  {"units": 2, "act": "identity", "init": "uniform", "init_kwargs": {"scale": 0.3}}]],
@@ -452,7 +442,7 @@ def test_grid_search_holdout_parallel_matches_sequential():
 
 def _fail_first_task(i, folder):
     """Worker for the cancellation test: task 0 fails at once, the others take a
-    while and leave a file behind to show they ran (module level: picklable)."""
+    while and leave a file behind to show they ran (module level: picklable)"""
     if i == 0:
         raise ValueError("task 0 failed")
     time.sleep(0.2)
@@ -462,7 +452,7 @@ def _fail_first_task(i, folder):
 
 def test_parallel_map_cancels_queued_tasks_after_an_error(tmp_path):
     """An error must not wait for the whole queue: the tasks not yet started are
-    cancelled, so only the few already handed to a worker still run."""
+    cancelled, so only the few already handed to a worker still run"""
     from src.utils.parallel import parallel_map
     tasks = [(i, str(tmp_path)) for i in range(20)]
     with pytest.raises(ValueError, match="task 0 failed"):
@@ -496,7 +486,7 @@ def test_holdout_reports_errors_in_original_target_units_when_scaled(
     assert result[f"val_{metric}_mean"] == pytest.approx(expected_val)
 
 
-# --- run_trials: generic scoring + median trial + opt-in early stopping ------
+# --- run_trials: scoring, median trial, early stopping -----------------------
 
 def test_run_trials_summary_uses_the_dynamic_score_name():
     X, Y = regression_data()
@@ -526,7 +516,7 @@ def test_run_trials_representative_trial_is_the_median_by_score():
 def test_run_trials_never_lets_the_test_set_influence_training(monkeypatch):
     """Assessment trains for the fixed epochs without early stopping. The test set is
     only recorded epoch by epoch for the learning curve: removing it from fit changes
-    neither the training curves nor any score."""
+    neither the training curves nor any score"""
     fit_calls = []
     original_fit = Network.fit
 

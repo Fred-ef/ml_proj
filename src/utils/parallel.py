@@ -1,14 +1,8 @@
 """Run independent tasks across worker processes
 
-Since each config's k-fold CV/multi-seed trial is independent (no shared
-state), we can parallelize them.
-
-Design decisions:
-  - processes instead of threads: CPython's GIL lets only one thread run
-    Python bytecode at a time, so threads would serialize, while separate
-    processes have separate interpreters.
-  - one BLAS thread per worker and we spawn workers on start-up to avoid
-    BLAS oversubscription.
+Configurations share no state, so they can be evaluated in parallel. Processes
+instead of threads because of the GIL; each worker uses one BLAS thread to
+avoid oversubscription
 """
 
 from __future__ import annotations
@@ -18,7 +12,7 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from multiprocessing import get_context
 from typing import Callable, Sequence
 
-# Thread-limit env vars honored by the common BLAS/OpenMP backends.
+# thread-limit env vars of the common BLAS/OpenMP backends
 _BLAS_ENV_VARS = ("OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS",
                   "MKL_NUM_THREADS", "NUMEXPR_NUM_THREADS")
 
@@ -39,19 +33,15 @@ def resolve_workers(n_core: int | None, n_tasks: int) -> int:
 
 def parallel_map(func: Callable, arg_tuples: Sequence[tuple], n_core: int | None,
                  on_result: Callable[[int, object], None] | None = None) -> list:
-    """Apply func(*args) for every args in arg_tuples across processes
+    """Apply func(*args) to every tuple in arg_tuples across processes
 
-    Returns the results in COMPLETION order.
-    if given, on_result(done, result) is invoked after each task for
-    progress reporting
+    Results come back in completion order. on_result(done, result), if given,
+    is called after each task to report progress. With n_core == 1 everything
+    runs in the main process, without a pool. On the first error the tasks not
+    yet started are cancelled and the error is raised once the running ones end
 
-    NOTE: With n_core == 1 the work runs in-process with no pool
-
-    NOTE: on the first error the tasks not yet started are cancelled; the error
-    is raised as soon as the ones already running finish
-
-    func and everything in arg_tuples must be picklable
-    (module-level functions, plain data, numpy arrays)
+    func and arg_tuples must be picklable (module-level functions, plain data,
+    numpy arrays)
     """
     workers = resolve_workers(n_core, len(arg_tuples))
 
@@ -80,8 +70,8 @@ def parallel_map(func: Callable, arg_tuples: Sequence[tuple], n_core: int | None
                 if on_result:
                     on_result(done, result)
         except BaseException:
-            # Leaving the with-block waits for EVERY submitted task: on an error
-            # (or Ctrl+C) cancel the queued ones, so only the running ones are awaited.
+            # Leaving the with-block waits for every submitted task: on an error
+            # (or Ctrl+C) cancel the queued ones and wait only for the running ones
             pool.shutdown(wait=True, cancel_futures=True)
             raise
     return results

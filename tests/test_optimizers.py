@@ -1,10 +1,4 @@
-"""Optimizer tests: weight-update rule (SGD)
-
-Testing the optimizer end-to-end. Checking the exact one-step formula and
-per-parameter state (velocity) and its reset.
-
-Run from the project root: pytest tests/test_optimizers.py -v
-"""
+"""SGD update rule: one step, momentum and velocity reset"""
 
 import numpy as np
 
@@ -46,7 +40,7 @@ def test_sgd_uses_nesterov_with_momentum():
 
 def test_sgd_momentum_accumulates_across_steps():
     # Constant gradient: velocity starts at 0, so step 1 moves -lr*g and step 2
-    # moves -lr*g*(1+m). After two steps  W = W0 - lr*g*(2 + m).
+    # moves -lr*g*(1+m). After two steps W = W0 - lr*g*(2 + m)
     opt = SGD(lr=0.1, momentum=0.9)
     W = np.array([[1.0, -2.0]])
     g = np.array([[1.0, 1.0]])
@@ -64,7 +58,7 @@ def test_sgd_reset_clears_velocity():
     assert opt.velocities is not None
     opt.reset()
     assert opt.velocities is None
-    # After reset the next step must behave like a first step again (velocity 0).
+    # after reset the next step is a first step again (velocity 0)
     W2 = np.array([[0.0, 0.0]])
     g2 = np.array([[2.0, -3.0]])
     opt.step([W2], [g2])

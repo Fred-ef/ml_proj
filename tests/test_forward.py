@@ -1,10 +1,5 @@
-"""build + forward + predict (no gradients)
-
-Deterministic and small, checks the contract (shapes, expected numbers,
-and invariants)
-
-Run from the project root: pytest tests/test_forward.py -v
-"""
+"""build, forward and predict: shapes, values computed by hand, caches and
+reproducibility"""
 
 import numpy as np
 import pytest
@@ -18,7 +13,7 @@ from src.nn.optimizers import SGD
 
 
 def make_net(seed: int = 0) -> Network:
-    """Small 3 -> 4 -> 2 network (Tanh hidden, linear output)."""
+    """Small 3 -> 4 -> 2 network (Tanh hidden, linear output)"""
     return Network(
         layers=[Dense(3, 4, Tanh(), Uniform(0.1)),
                 Dense(4, 2, Identity(), Uniform(0.1))],
@@ -60,10 +55,10 @@ def test_forward_preserves_batch_size(n_examples):
 # --- forward: exact computation with known W, b -----------------------------
 
 def test_dense_forward_matches_hand_computation():
-    """With Identity, A == Z == XW + b: check it against known weights."""
+    """With Identity, A == Z == XW + b: check it against known weights"""
     layer = Dense(2, 3, Identity(), Uniform(0.1))
     layer.build(np.random.default_rng(0))
-    # overwrite the random weights with known values to test the arithmetic
+    # known weights instead of random ones
     layer.W = np.array([[1.0, 0.0, 2.0],
                         [0.0, 1.0, 1.0]])
     layer.b = np.array([[10.0, 20.0, 30.0]])
@@ -75,7 +70,7 @@ def test_dense_forward_matches_hand_computation():
 
 
 def test_forward_caches_x_and_z():
-    """The backward pass depends on these caches: a contract to guarantee."""
+    """backward needs these caches"""
     layer = Dense(2, 3, Tanh(), Uniform(0.1))
     layer.build(np.random.default_rng(0))
     X = np.array([[1.0, -1.0]])

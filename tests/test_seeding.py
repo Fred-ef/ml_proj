@@ -1,4 +1,4 @@
-"""Reproducibility contracts for the independent experiment RNG streams."""
+"""Reproducibility contracts for the independent experiment RNG streams"""
 
 import numpy as np
 import pytest

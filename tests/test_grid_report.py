@@ -1,4 +1,4 @@
-"""The saved grid result should be readable without inspecting JSON syntax."""
+"""Readable report of a saved grid search"""
 
 import json
 

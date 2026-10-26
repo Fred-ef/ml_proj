@@ -1,8 +1,6 @@
-"""Multilayer Perceptron: stacks Dense layers and runs the training loop.
+"""Multilayer perceptron: a stack of Dense layers plus the training loop
 
-Owns the forward/backward passes, the loss, the optimizer and the regularizer,
-and exposes a scikit-like API (``fit`` / ``predict``) plus a ``history`` of
-per-epoch metrics for plotting. Fully vectorized and reproducible from a seed.
+``fit`` / ``predict`` API; ``history`` keeps the per-epoch loss and metrics
 """
 
 from __future__ import annotations
@@ -36,8 +34,8 @@ class Network:
         self.regularizer = regularizer
         self.seed = resolve_seed(seed)
         self.rng = np.random.default_rng(self.seed)
-        # A separate stream keeps batch order stable when the architecture
-        # changes how many random values weight initialization consumes.
+        # Separate stream, so the batch order does not depend on how many random
+        # numbers the weight initialization used
         self.shuffle_seed = (derive_seed(self.seed, "network_shuffle")
                              if shuffle_seed is None else resolve_seed(shuffle_seed))
         self.shuffle_rng = np.random.default_rng(self.shuffle_seed)
@@ -71,7 +69,7 @@ class Network:
         metrics: dict[str, Callable] | None = None,
         training_target: tuple[str, float] | None = None,
     ) -> dict[str, list[float]]:
-        """Train and record each epoch; an optional training target stops at first reach."""
+        """Train and record each epoch; stop once training_target, if given, is reached"""
         self.history = {"loss": [], "val_loss": []}
         for _name in (metrics or {}):
             self.history[_name] = []
@@ -152,7 +150,7 @@ class Network:
 
     # --- correctness -----------------------------------------------------
     def gradient_check(self, x: np.ndarray, y: np.ndarray, eps: float = 1e-6) -> float:
-        """Compare analytic vs finite-difference gradients (numerical sanity check)."""
+        """Max relative error between the backprop and the finite-difference gradients"""
         self.backward(self.forward(x), y)
         max_rel = 0.0
         for layer in self.layers:

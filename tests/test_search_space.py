@@ -1,4 +1,4 @@
-"""Contract for expanding compact search ranges into model configurations."""
+"""Contract for expanding compact search ranges into model configurations"""
 
 import json
 from collections import Counter

@@ -1,14 +1,10 @@
-"""Learning rate schedules."""
+"""Learning rate schedules"""
 
 from __future__ import annotations
 
 
 class LinearDecay:
-    """Linear learning rate decay schedule (scheduler).
-
-    Linearly interpolates from `eta_0` to `eta_tau` over `tau` steps.
-    After `tau` steps, the learning rate remains fixed at `eta_tau`.
-    """
+    """Linear decay from `eta_0` to `eta_tau` over `tau` epochs, then constant"""
 
     def __init__(self, eta_0: float, tau: int, eta_tau: float | None = None) -> None:
         self.eta_0 = eta_0

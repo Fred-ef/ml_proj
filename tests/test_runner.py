@@ -1,11 +1,4 @@
-"""Runner tests: task/mode dispatch and shared execution engine
-
-Testing the core that both interfaces call — task profile resolution, mode
-handlers wiring the from-scratch core (run_trials/grid_search/build_model),
-and run persistence/indexing
-
-Run from the project root:  pytest tests/test_runner.py -v
-"""
+"""Runner: task profiles, mode handlers, saved runs and index"""
 
 import csv
 import json
@@ -21,7 +14,7 @@ from runner.engine import run_experiment, _is_index_scalar
 ROOT = Path(__file__).resolve().parents[1]
 
 
-# --- registry: TaskProfile derives from the single METRICS source of truth ---
+# --- registry: TaskProfile uses METRICS --------------------------------------
 
 def test_all_registered_tasks_derive_from_the_metrics_registry():
     for profile in TASKS.values():
@@ -89,7 +82,7 @@ def test_run_experiment_train_produces_the_expected_artifacts(tmp_path):
 
 
 def _assert_assess_curves_are_on_the_test_set(assess_dir, metric):
-    """history.csv holds training and test curves; the test one ends at the reported score."""
+    """history.csv holds training and test curves; the test one ends at the reported score"""
     summary = json.loads((assess_dir / "summary.json").read_text())
     with open(assess_dir / "history.csv", newline="") as f:
         rows = list(csv.DictReader(f))
@@ -105,7 +98,7 @@ def _assert_assess_curves_are_on_the_test_set(assess_dir, metric):
     assert (assess_dir / "learning_curve.png").exists()
 
 
-# --- engine: select -> assess chain, exactly as a user would run it ----------
+# --- engine: select then assess ----------------------------------------------
 
 def test_run_experiment_select_then_assess_chain(tmp_path):
     select_payload = {
@@ -128,7 +121,7 @@ def test_run_experiment_select_then_assess_chain(tmp_path):
     assert {"best_config", "best_epoch_median", "val_mean", "val_std"}.isdisjoint(select_summary)
     assert len(select_summary["ranking"]) == select_summary["n_configs"] == 2
 
-    # Assess uses the explicitly selected row, even when it is not the first.
+    # Assess uses the explicitly selected row, even when it is not the first
     chosen = select_summary["ranking"][1]
     assess_payload = dict(chosen["config"])
     assess_payload["n_trials"] = 2
@@ -228,7 +221,7 @@ def test_run_experiment_select_with_trials_saves_spread_and_curves(tmp_path, val
                              tag="pytest-trials", results_root=tmp_path)
     summary = json.loads((run_dir / "summary.json").read_text())
 
-    # summary.json keeps the spread across initializations, not the (large) curves.
+    # summary.json keeps the spread across initializations, not the (large) curves
     assert "curves" not in summary
     assert summary["n_trials"] == 3
     assert len(summary["seed_plan"]["models"]) == runs     # one stream pair per (trial, fold)
@@ -238,7 +231,7 @@ def test_run_experiment_select_with_trials_saves_spread_and_curves(tmp_path, val
         assert row["val_init_std"] == pytest.approx(np.std(row["per_trial_val"]))
         assert len(row["epochs_run"]) == runs
 
-    # curves.json: one entry per configuration, in ranking order, 6 epochs each.
+    # curves.json: one entry per configuration, in ranking order, 6 epochs each
     curves = json.loads((run_dir / "curves.json").read_text())
     assert [entry["rank"] for entry in curves] == [1, 2, 3]
     for entry in curves:
@@ -248,16 +241,16 @@ def test_run_experiment_select_with_trials_saves_spread_and_curves(tmp_path, val
             assert len(entry["loss"][name]["mean"]) == len(entry["loss"][name]["std"]) == 6
             assert entry["loss"][name]["n_alive"] == [runs] * 6
         assert set(entry["loss"]) == {"train", "val"}
-        # Sanity check: a tiny net starts by answering about 0.5, so the first MSE is about 0.5**2.
+        # a tiny net starts near 0.5, so the first MSE is about 0.5**2
         assert entry["loss"]["train"]["mean"][0] == pytest.approx(0.25, abs=0.05)
 
-    # Plots: the first plot_top configurations, the comparison and the copy of the best one.
+    # Plots: the first plot_top configurations, the comparison and the copy of the best one
     assert {p.name for p in (run_dir / "curves").iterdir()} == {
         "rank01.png", "rank02.png", "top_val.png"}
     assert ((run_dir / "learning_curve.png").read_bytes()
             == (run_dir / "curves" / "rank01.png").read_bytes())
 
-    # Two panels side by side (loss and metric): much wider than tall.
+    # Two panels side by side (loss and metric): much wider than tall
     from matplotlib.image import imread
     for name in ("rank01.png", "top_val.png"):
         height, width = imread(run_dir / "curves" / name).shape[:2]
@@ -320,7 +313,7 @@ def test_run_experiment_select_does_not_pollute_the_index_with_nested_fields(tmp
 
 
 # --- cup: registered with a restricted mode set (no plain `train`) -----------
-# CUP follows the select/assess workflow; plain train remains unavailable.
+# CUP follows the select/assess workflow; plain train remains unavailable
 
 def test_cup_profile_uses_mee_and_forbids_plain_train():
     profile = TASKS["cup"]
@@ -337,9 +330,8 @@ def test_run_experiment_train_is_rejected_for_cup(tmp_path):
 
 
 def test_cup_internal_test_split_is_deterministic_across_loads():
-    """The internal test must be the SAME rows on every call: select (today)
-    and assess (possibly days later, a separate process) must agree on which
-    100 rows were never used for model selection."""
+    """select and assess (separate processes, maybe days apart) must get the
+    same 100 internal test rows"""
     _, _, X_test_1, Y_test_1 = TASKS["cup"].load(ROOT)
     _, _, X_test_2, Y_test_2 = TASKS["cup"].load(ROOT)
     assert np.array_equal(X_test_1, X_test_2)

@@ -1,4 +1,4 @@
-"""Read a saved grid search summary without running the search again.
+"""Print the report of a saved grid search
 
 Usage:
     python -m runner.show_grid_search results/monk1/RUN_ID
@@ -27,7 +27,7 @@ def _number(value: float) -> str:
 
 
 def _value(value) -> str:
-    """Render nested configuration values without JSON punctuation."""
+    """Render nested configuration values without JSON punctuation"""
     if value is None:
         return "nessuno"
     if isinstance(value, bool):
@@ -80,7 +80,7 @@ def _batch_mode(batch_size) -> str:
 
 
 def _configuration_fields(config: dict) -> list[_ConfigField]:
-    """Keep a stable, human-readable order for each configuration's parameters."""
+    """Readable fields of a configuration (always in the same order)"""
     layers = config.get("arch", [])
     architecture = (config.get("n_inputs"),
                     tuple((layer.get("units"), layer.get("act")) for layer in layers))
@@ -148,12 +148,12 @@ def _append_fields(lines: list[str], fields: list[tuple[str, str]], indent: str)
 
 
 def _same_raw(left, right) -> bool:
-    """Compare JSON configuration values without rounding or key-order effects."""
+    """Compare JSON configuration values without rounding or key-order effects"""
     return json.dumps(left, sort_keys=True) == json.dumps(right, sort_keys=True)
 
 
 def _runs_label(row: dict, validation_mode: str) -> str:
-    """Name the runs behind the epoch lists ('' = a single holdout run)."""
+    """Name the runs behind the epoch lists ('' = single holdout run)"""
     trials = row.get("n_trials", 1) > 1
     if validation_mode == "kfold":
         return "nei run (trial × fold)" if trials else "nei fold"
@@ -161,9 +161,9 @@ def _runs_label(row: dict, validation_mode: str) -> str:
 
 
 def _ranking_table(ranking: list[dict], limit: int | None) -> list[str]:
-    """One line per configuration: mean error +- std across initializations."""
+    """One line per configuration: mean error +- std across initializations"""
     if not ranking or "n_trials" not in ranking[0]:
-        return []  # summaries saved before multi-initialization support
+        return []  # older summaries without multiple initializations
     rows = ranking if limit is None else ranking[:limit]
 
     def cell(mean, std) -> str:
@@ -172,7 +172,7 @@ def _ranking_table(ranking: list[dict], limit: int | None) -> list[str]:
     n_trials = ranking[0]["n_trials"]
     spread = (f"errore medio ± dev. std tra {n_trials} inizializzazioni dei pesi"
               if n_trials > 1 else "una sola inizializzazione: nessuna dev. std")
-    # Summaries saved before the tie-break have no validation loss: no column.
+    # older summaries have no validation loss: no column
     with_loss = all("val_data_loss" in row for row in rows)
     lines = ["", f"CLASSIFICA SINTETICA ({spread})",
              f"  {'#':>3}  {'Validation':<24} {'Training':<24} {'Epoca':>6}"
@@ -186,7 +186,7 @@ def _ranking_table(ranking: list[dict], limit: int | None) -> list[str]:
 
 
 def _init_fields(row: dict, metric_label: str) -> list[tuple[str, str]]:
-    """Spread caused by the initial weights (absent from older summaries)."""
+    """Spread caused by the initial weights (missing in older summaries)"""
     n_trials = row.get("n_trials", 1)
     if n_trials < 2:
         return []
@@ -202,10 +202,10 @@ def _init_fields(row: dict, metric_label: str) -> list[tuple[str, str]]:
 
 
 def _epoch_fields(row: dict, validation_mode: str) -> list[tuple[str, str]]:
-    """Distinguish training duration from the best validation epoch.
+    """Epochs run and best validation epochs, kept apart
 
-    Older summaries recorded only the validation-optimal epoch, not training
-    duration. Their labels must not imply that scores came from the final epoch.
+    Older summaries only have the best validation epoch, so their labels must
+    not suggest that the scores come from the final epoch
     """
     if "epochs_run" not in row:
         label = ("Mediana epoche di miglior validation (criterio precedente)"
@@ -239,7 +239,7 @@ def _epoch_fields(row: dict, validation_mode: str) -> list[tuple[str, str]]:
 
 def _result_fields(row: dict, metric: str, metric_label: str,
                    validation_mode: str) -> list[tuple[str, str]]:
-    """Scores of one configuration."""
+    """Scores of one configuration"""
     error_suffix = " (MEE media)" if metric == "mee" else ""
     results = [
         (f"Errore training{error_suffix}", _number(row["train_error"])),
@@ -279,14 +279,13 @@ def _result_fields(row: dict, metric: str, metric_label: str,
 
 def format_select_summary(summary: dict, run_config: dict | None = None,
                           limit: int | None = 20) -> str:
-    """Show shared settings and the first ranked configurations."""
+    """Shared settings and the first ranked configurations"""
     metric = summary["metric"]
     metric_label = {"acc": "accuratezza", "mee": "MEE"}.get(metric, metric)
     order = {"acc": "accuratezza di validation decrescente",
              "mee": "MEE di validation crescente"}.get(
                  metric, "errore di validation crescente")
-    # Ties in the validation score are ordered by validation loss (absent from older
-    # summaries; with metric "loss" the two criteria coincide).
+    # Ties are broken by validation loss
     if metric != "loss" and all("val_data_loss" in row for row in summary["ranking"]):
         order += "; a parità, loss di validation crescente"
     task = f"{run_config['task'].upper()}  |  " if run_config and "task" in run_config else ""

@@ -1,4 +1,4 @@
-"""Step 1 contract: what holdout_validate / cross_validate return, and which seeds they use"""
+"""What holdout_validate and cross_validate return, and which seeds they use"""
 
 import numpy as np
 import pytest
@@ -24,13 +24,13 @@ def test_holdout_validate_returns_the_selected_score_and_the_full_curve():
     X, Y = np.zeros((6, 1)), np.zeros((6, 1))
     split = np.arange(3), np.arange(3, 6)
 
-    # No early stopping: the final epoch (the fourth) is the selected one.
+    # No early stopping: the final epoch (the fourth) is the selected one
     result = holdout_validate(lambda cfg: FixedHistory(history), {"epochs": 4}, X, Y, *split)
     assert result["train_scores"] == [0.4] and result["val_scores"] == [0.5]
     assert result["train_curves"] == [[0.9, 0.5, 0.3, 0.4]]
     assert result["val_curves"] == [[1.0, 0.6, 0.4, 0.5]]
 
-    # Early stopping: the epoch with the lowest validation loss (the third) is selected.
+    # Early stopping: the epoch with the lowest validation loss (the third) is selected
     result = holdout_validate(lambda cfg: FixedHistory(history),
                               {"epochs": 4, "patience": 2}, X, Y, *split)
     assert result["train_scores"] == [0.3] and result["val_scores"] == [0.4]
@@ -47,12 +47,12 @@ def test_cross_validate_returns_one_score_and_one_curve_per_fold():
     result = cross_validate(lambda cfg: FixedHistory(next(histories)), {"epochs": 3},
                             X, Y, k=2, seed=0)
 
-    # One number per fold: the value at the selected (here: final) epoch.
+    # One number per fold: the value at the selected (here: final) epoch
     assert result["train_scores"] == [0.5, 0.2] and result["val_scores"] == [0.6, 0.3]
-    # One list per fold: the whole curve, whatever its length.
+    # One list per fold: the whole curve, whatever its length
     assert result["train_curves"] == [[0.9, 0.5], [0.8, 0.4, 0.2]]
     assert result["val_curves"] == [[1.0, 0.6], [0.9, 0.5, 0.3]]
-    # The existing summary keys keep their meaning.
+    # the summary keys keep their meaning
     assert result["val_loss_mean"] == pytest.approx(0.45)
     assert result["epochs_run"] == [2, 3]
 
@@ -143,7 +143,7 @@ def test_cross_validate_trial_moves_only_the_initialization():
 @pytest.mark.parametrize("validation", ["holdout", "kfold"])
 def test_scores_are_the_curve_values_at_the_selected_epoch(validation, scale, metric):
     # Real training: each curve must be in the same units as its score. With scale=True
-    # the network trains on standardized targets but scores are reported in original units.
+    # the network trains on standardized targets but scores are reported in original units
     rng = np.random.default_rng(0)
     X, Y = rng.standard_normal((30, 3)), 50 + 20 * rng.standard_normal((30, 2))
     config = {"n_inputs": 3, "loss": "mse", "epochs": 5, "scale": scale,
@@ -195,7 +195,7 @@ def test_cross_validate_returns_one_loss_curve_per_fold():
 @pytest.mark.parametrize("validation", ["holdout", "kfold"])
 def test_loss_curves_come_from_training_not_from_the_selection_metric(validation):
     # With scale=True the network trains on standardized targets, so its loss is of order 1,
-    # while the reported MEE is in the original units (here of order 30).
+    # while the reported MEE is in the original units (here of order 30)
     rng = np.random.default_rng(0)
     X, Y = rng.standard_normal((30, 3)), 50 + 20 * rng.standard_normal((30, 2))
     config = {"n_inputs": 3, "loss": "mse", "epochs": 5, "scale": True,

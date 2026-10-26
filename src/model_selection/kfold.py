@@ -1,8 +1,4 @@
-"""K-fold cross-validation.
-
-Estimates validation MEE/MSE for each hyperparameter configuration during model
-selection. Returns per-fold metrics so we can report mean +/- std.
-"""
+"""K-fold cross-validation of one configuration, with per-fold scores and curves"""
 
 from __future__ import annotations
 
@@ -15,16 +11,15 @@ from .scaling import original_target_metric, prepare_split
 
 
 def kfold_indices(n_samples: int, k: int, seed: int | None = None):
-    """Yield (train_idx, val_idx) for each of the k folds."""
-    # Use a seed when reproducible folds matter.
+    """Yield (train_idx, val_idx) for each of the k folds"""
     rng = np.random.default_rng(seed)
 
     indices = np.arange(n_samples)
 
-    # Shuffle before splitting so ordered data does not bias validation.
+    # shuffle first, the data may be ordered
     rng.shuffle(indices)
 
-    # array_split also handles sample counts that do not divide evenly.
+    # array_split also works when k does not divide n_samples
     folds = np.array_split(indices, k)
 
     for i in range(k):
@@ -34,9 +29,8 @@ def kfold_indices(n_samples: int, k: int, seed: int | None = None):
 
 
 def cross_validate(build_model, config: dict, X, Y, k: int = 5, seed: int | None = None, metric: str = "loss", trial: int = 0) -> dict:
-    """Run k-fold CV for one config; return aggregated metrics (mean, std)."""
+    """Run k-fold CV for one config; return aggregated metrics (mean, std)"""
 
-    # Resolve the metric once before looping over folds.
     if metric == "loss":
         metric_fn, greater_is_better = None, False
         val_key, train_key = "val_loss", "loss"
@@ -80,7 +74,7 @@ def cross_validate(build_model, config: dict, X, Y, k: int = 5, seed: int | None
 
         index = trial * k + fold_idx
 
-        # All configurations share a fold's initialization and batch order.
+        # all configurations share a fold's initialization and batch order
         model = build_model({**config,
                              "seed": derive_seed(master_seed, "select_weights", index),
                              "shuffle_seed": derive_seed(master_seed, "select_shuffle", index)})
@@ -99,7 +93,6 @@ def cross_validate(build_model, config: dict, X, Y, k: int = 5, seed: int | None
         else:
             es_callback = None
 
-        # Train this fold, with optional early stopping on validation performance.
         history = model.fit(
             X_train, Y_train,
             epochs=epochs,
@@ -109,18 +102,15 @@ def cross_validate(build_model, config: dict, X, Y, k: int = 5, seed: int | None
             metrics={report_name: report_fn} if report_fn else None
         )
 
-        # Populating lists for train and validation curves, read from the same
-        # keys as the scores below so that both are in the same (reported) units.
+        # same keys as the scores below, so curves and scores share their units
         train_curves.append(history[score_train_key])
         val_curves.append(history[score_val_key])
         train_loss_curves.append(history["loss"])
         val_loss_curves.append(history["val_loss"])
 
-        # The final retraining target is independent of the epoch used to rank
-        # this configuration. Find the first validation optimum in each fold,
-        # even when early stopping was disabled and ranking uses the last epoch.
-        # For scaled regression, score_train_key/score_val_key are the reported
-        # metrics in original target units (including reported_loss).
+        # Retraining target: training error at the first validation optimum of
+        # the fold, whatever epoch the ranking uses. With scaling these keys are
+        # in the original target units (reported_loss included)
         stop_train_key = "loss" if metric == "acc" else score_train_key
         stop_val_key = "val_loss" if metric == "acc" else score_val_key
         stop_pick = np.argmax if metric != "acc" and greater_is_better else np.argmin
@@ -128,8 +118,7 @@ def cross_validate(build_model, config: dict, X, Y, k: int = 5, seed: int | None
         cv_stop_train_errors.append(float(history[stop_train_key][stop_idx]))
         cv_stop_epochs.append(stop_idx + 1)
 
-        # Without early stopping, score the final trained model. With early
-        # stopping, retain the validation-selected epoch for compatibility.
+        # score the last epoch, or the early stopping checkpoint
         completed = len(history[score_val_key])
         if es_callback is None:
             selected_idx = completed - 1
@@ -141,7 +130,7 @@ def cross_validate(build_model, config: dict, X, Y, k: int = 5, seed: int | None
         best_epochs.append(selected_idx + 1)
         epochs_run.append(completed)
 
-    # Return plain Python values so the result is easy to serialize.
+    # plain Python values, ready for JSON
     return {
         f"val_{metric}_mean": float(np.mean(val_scores)),
         f"val_{metric}_std": float(np.std(val_scores)),

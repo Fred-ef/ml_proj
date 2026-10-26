@@ -1,219 +1,184 @@
-# ML 2026 Project — Type A (Neural Network from scratch)
+# ML 2026 project: neural network from scratch (Type A)
 
-Final project for the Machine Learning course (A. Micheli, University of Pisa).
-**Type A:** a Multilayer Perceptron simulator with backpropagation, momentum and
-L2 regularization, implemented from scratch on top of NumPy only — applied to the
-**MONK** benchmarks and to the **ML-CUP 2026** competition.
+Final project of the Machine Learning course (University of Pisa):
+a multilayer perceptron with backpropagation, momentum and L2 regularization,
+written with NumPy only and applied to the MONK benchmarks and to ML-CUP25.
 
-> ⚠️ Type A constraint: the model, training algorithm and validation are written
-> by us, independently of any framework. Only numerical/plotting/IO libraries are
-> used (NumPy, Matplotlib, Pandas). Using PyTorch/TensorFlow/Keras/scikit-learn or
-> LLM-generated model code would make it Type B / fail. See
-> [`context/GUIDA_PROGETTO.md`](context/GUIDA_PROGETTO.md).
-
-## Project layout
+## Layout
 
 ```
 src/
-  nn/               core simulator: layer, network, activations, losses,
-                    optimizers, regularizers, initializers
-  model_selection/  grid_search (mandatory), kfold CV, early_stopping
-  data/             monk (1-of-k -> 17 inputs), cup (TR/TS load, split, scaling)
-  utils/            metrics (MEE/MSE/accuracy), plotting (B/W-friendly curves)
-experiments/        run_monk.py, cup_screening.py, cup_final.py
-data/               datasets (git-ignored; see data/READ-ME.md)
-results/            generated plots/logs (git-ignored)
-report/             slide report (PDF, English)
-context/            project brief, guide and design notes
+  nn/               layers, network, activations, losses, optimizers,
+                    regularizers, initializers, learning rate schedules
+  model_selection/  grid search, k-fold CV, holdout, early stopping, trials
+  data/             MONK (1-of-k, 17 inputs), CUP loading and split, scaling
+  utils/            metrics, plotting, seeding, parallel runs, run saving
+runner/             CLI that runs an experiment from a JSON config
+configs/            experiment configs, one folder per task
+experiments/        cup_final.py (blind test output)
+tests/              pytest suite
+results/            run outputs (git-ignored)
+report/             slide report
 ```
 
 ## Setup
 
-This is a Type-A project, so dependencies are minimal (see `requirements.txt`):
-
 ```bash
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
+pip install -r requirements-dev.txt   # pytest
 ```
-
-> Note: the current environment has no NumPy and no package manager (pip/uv/conda)
-> available — a working Python env with NumPy must be provisioned before the core
-> code (F1+) can run. See "Status" below.
 
 ## Data
 
-Download the official files from the Moodle folder `ML-25-PRJ` (this year only)
-into `data/` — see [`data/READ-ME.md`](data/READ-ME.md) for the exact filenames.
+The datasets are not in the repository. Download them from the course Moodle
+folder `ML-25-PRJ` into:
 
-## How to run (once implemented)
-
-```bash
-python -m experiments.run_monk        # MONK 1/2/3: learning curves + accuracy table
-python -m experiments.cup_screening   # CUP: grid search / model selection
-python -m experiments.cup_final       # CUP: retrain + blind-test CSV + abstract
+```
+data/monk/monks-{1,2,3}.{train,test}
+data/cup/ML-CUP25-TR.csv
+data/cup/ML-CUP25-TS.csv
 ```
 
-## Grid search results
+## Running
 
-The `select` mode saves the full ranked configuration list in `summary.json`,
-then prints a readable report automatically:
+Each experiment is a JSON file with `task` (`monk1`, `monk2`, `monk3`, `cup`),
+`mode` (`train`, `select`, `assess`), `tag` and the `config` of the run:
 
 ```bash
-python -m runner --config configs/samples/monk_mod_selection.json
+python -m runner --config configs/monk1/monk1_grid_coarse.json
+python -m runner --config configs/monk1/monk1_assess_model.json --tag lr03-try
 ```
 
-To reopen a saved report without running training again:
+Results go to `results/<task>/<run_id>/`; `results/<task>/index.jsonl` (and its
+CSV copy) gets one row per run. Tests run with `pytest` from the project root.
+
+- `train` repeats the training `n_trials` times without using the test set.
+  With `patience`, `val_fraction` or `stratify` it holds out a validation split
+  from the training data (20% by default, or `val_fraction`) and uses it for
+  early stopping; otherwise it trains on all the training data and reports
+  training scores only.
+- `select` runs a grid search with holdout or k-fold (`k`) validation, saves
+  the ranking in `summary.json` and prints a report.
+- `assess` retrains on the whole design set and evaluates on the test set.
+  `patience` is ignored: it trains for `epochs` epochs, or until the CV target
+  described below. The test set is recorded at each epoch for the learning
+  curve, but never decides when to stop or which checkpoint to keep.
+
+CUP only has `select` and `assess`. Its test set is an internal split of the
+training file (20%, seed `0`), the same in every run.
+
+To print a saved grid search again:
 
 ```bash
 python -m runner.show_grid_search results/monk1/RUN_ID
 ```
 
-The reader shows the first 20 ranked configurations by default. Use `--top N`
-to choose a different number or `--all` to show every configuration. It also
-accepts the path to `summary.json` directly.
+It shows the first 20 configurations; `--top N` and `--all` change that. The
+path can also point to `summary.json`.
 
-`train` runs repeated training without using the test set. With `patience`, it
-creates one reproducible holdout from the training data (20% by default, or
-`val_fraction` if set) and uses the task's validation metric for early stopping.
-Without `patience` or `val_fraction`, it trains on all available training examples and
-reports only training scores. `select` uses its own holdout or k-fold validation
-to compare configurations. `assess` retrains on the entire development set and
-uses `epochs` as its training limit; any carried-over `patience` setting has no
-effect in this mode. The held-out test set is recorded at each epoch for the
-learning curve, but it does not control stopping or checkpoint selection.
-Without a CV target, assessment runs for the fixed `epochs`; set it to the
-chosen configuration's `best_epoch_median` if that is the desired duration.
+### CV-guided stopping in assess
 
-### CV-guided stopping for final assessment
+In a k-fold `select` run, each fold records the training error at the first
+epoch with the lowest validation error. Their mean, over all folds and trials,
+is saved in the ranking row as `cv_stop_target`, with its unit in
+`cv_stop_metric` and the single values and epochs in `cv_stop_train_errors`
+and `cv_stop_epochs`.
 
-For each fold of a k-fold `select` run, find the first epoch with the lowest
-validation error and record the training error at that epoch. The arithmetic
-mean of those training errors is the final retraining threshold. With multiple
-initializations, the mean covers every trial and fold. The selected ranking
-row records the threshold as `cv_stop_target`, its units as `cv_stop_metric`,
-and the individual values and epochs as `cv_stop_train_errors` and
-`cv_stop_epochs`.
+Copying `config`, `cv_stop_target` and `cv_stop_metric` of the chosen row into
+an `assess` config (by hand, for now) makes the retraining start from new
+weights and stop at the first epoch whose training error is at or below the
+target, with `epochs` as the upper limit. Without `cv_stop_target`, assess
+trains for exactly `epochs` epochs: set it to the row's `best_epoch_median` if
+that is the wanted duration.
 
-Copy the chosen row's `config`, `cv_stop_target`, and `cv_stop_metric` into the
-`assess` configuration. Keep its original `epochs` value as the maximum number
-of epochs. Assessment starts from fresh weights and stops at the first completed
-epoch whose training error is at or below the threshold. If it never reaches
-the threshold, it runs through `epochs`. With no `cv_stop_target`, assessment
-still uses the fixed number of epochs. Copying the fields from `select` into
-`assess` is currently a manual step in the CLI.
+The target is the MSE (`loss`) for MONK and the MEE in the original units for
+CUP, also with `scale: true`, where the training loss is on standardized
+targets and cannot be compared with it.
 
-MONK uses training and validation `loss` (MSE) for this criterion. CUP uses MEE
-in the original target units, including when `scale: true`; the training loss
-can then be in standardized units and must not be compared with the MEE target.
+### Early stopping
 
-`learning_curve.png` of a `train` or `assess` run has two panels, in the style of
-the report figures: the MSE on the left and the task metric on the right
-(accuracy for MONK, MEE for CUP), with training as a solid line and the test set
-(`assess`) or the validation split (`train`) as a dashed line. It shows the trial
-with the median score on that held-out data (on the training data if `train` has no
-validation split), and `history.csv` holds its curves:
-in `assess` the held-out columns are named `test_loss` and `test_<metric>`.
-With `scale: true` the CUP MSE is measured on standardized targets.
+For MONK, early stopping watches the validation loss, while the ranking and the
+reported scores use accuracy. For CUP it watches the validation MEE in the
+original units. The checkpoint is the best epoch of the watched metric (the
+first one on ties) and its weights are restored before scoring. `min_delta` is
+the absolute improvement needed to reset the `patience` counter and does not
+change which checkpoint is chosen; it is in MSE units for MONK (`0` lets every
+strict improvement reset it) and in MEE units for CUP.
 
-For MONK classification, set `config.stratify: true` to preserve class
-proportions in a holdout split. This works in `select` with holdout validation
-and in `train` with its internal validation split. In `train`, setting
-`stratify: true` also creates that split when neither `patience` nor
-`val_fraction` is provided, using the default 20% validation fraction.
-The split keeps at least one sample of every class in both partitions; it
-raises an error when the requested fraction or class counts make this
-impossible. `stratify` defaults to `false` and is not available for k-fold,
-`assess`, or CUP regression.
+### Scaling and stratification
 
-For MONK, early stopping monitors validation loss (lower is better), while
-configuration ranking and reported scores still use accuracy. For
-CUP, it monitors validation MEE in the original target units (lower is better).
-The best checkpoint follows the same metric and retains the first epoch when
-scores tie. When early stopping is enabled, the model's weights are restored to
-that checkpoint before it is scored. `min_delta` is an absolute improvement
-threshold for resetting the `patience` counter; it does not determine which
-checkpoint is best. For MONK, `min_delta` is in validation-loss units (MSE with
-the current configurations); `0` lets every strict loss improvement reset the
-counter. In CUP, any nonzero `min_delta` is in original MEE units.
+MONK inputs (one-hot) and targets (0/1) are never scaled and `scale: true` is
+rejected. For CUP, `scale: true` standardizes inputs and targets with the
+statistics of the training part only; the network trains on scaled targets,
+but validation and test MEE are computed in the original units.
 
-MONK's one-hot inputs and 0/1 targets are used without scaling; `scale: true`
-is rejected for MONK. For CUP, `scale: true` fits input and target scalers on
-the training portion only. The network trains with scaled targets, but
-validation and test MEE compare
-predictions and targets in their original units.
+For MONK, `stratify: true` keeps the class proportions in a holdout split: in
+`select` with holdout validation, and in `train`, where it also creates the
+split when neither `patience` nor `val_fraction` is set. Both parts keep at
+least one sample per class, otherwise an error is raised. `stratify` is
+`false` by default and is not available with k-fold, in `assess` or for CUP.
 
-### Experiment seeds
+### Seeds
 
-`config.seed` is the master seed. The runner derives separate, reproducible
-streams for the validation split, weight initialization, and per-epoch sample
-order. All grid configurations use the same split and, within each fold, the
-same weight and shuffle seeds. Architectures can draw different numbers of
-weights without changing the shuffle stream. Train/assess trials get distinct
-weight and shuffle seeds. With early stopping, train trials also share an
-internal validation split derived from the master seed.
+`config.seed` is the master seed. The validation split, the weight
+initialization and the per-epoch shuffle get separate streams derived from it.
+All configurations of a grid share the split and, fold by fold, the weight and
+shuffle seeds; the shuffle stream does not depend on how many weights an
+architecture draws. Trials of `train` and `assess` get different seeds, and in
+`train` they share the validation split.
 
-An explicit non-negative integer replays the same random choices. In `select`,
-an omitted or `null` seed generates a master seed once; `train` and `assess`
-default to `0` when omitted, while explicit `null` generates one. The effective
-master seed is saved in `config.json`, and `summary.json` records the derived
-seeds in `seed_plan`. The CUP internal test split remains fixed at seed `0`
-independently of the experiment seed. The seed derivation scheme is versioned:
-old results made before `seedsequence-v1` will not have the same random choices
-for a given master seed.
-
-For an executable example with all optional settings visible and `null` values
-for disabled features, see `configs/samples/monk_mod_selection.json` and
-`configs/samples/README.md`.
+In `select` a missing or `null` seed is drawn once at random; `train` and
+`assess` use `0` when it is missing and draw one for an explicit `null`. The
+seed used is saved in `config.json` and the derived seeds in the `seed_plan` of
+`summary.json`. The CUP internal test split always uses seed `0`. The
+derivation scheme is versioned (`seedsequence-v1`): runs made with an older
+scheme do not replay with the same seed.
 
 ### Weight initializations and learning curves
 
 With `n_trials` greater than 1 in `select`, every configuration is trained that
-many times with different weight initializations (and batch order) on the same
-validation split. The ranking uses the mean over the trials. Configurations
-with the same mean validation score (for example several at 100% accuracy on
-MONK) are ordered by their mean validation loss at the selected epoch: the MSE
-on the data, without the regularization penalty. For each
-configuration the report adds the variance and standard deviation across
-initializations, and the validation score of each trial. This is different from
-the standard deviation across folds in k-fold validation, which measures how
-much the error changes with the data.
+many times with different initializations (and batch order) on the same split,
+and the ranking uses the mean. Ties, such as several configurations at 100%
+accuracy on MONK, are broken by the mean validation loss at the selected epoch
+(MSE without the regularization term). The report also gives the variance and
+standard deviation across initializations and the score of each trial; the
+standard deviation across folds is a separate value, which measures how much
+the error changes with the data.
 
-The run directory also contains:
+A `select` run also saves:
 
-- `curves.json`: mean per-epoch train and validation curves of the selection metric
-  and, under the `loss` key, of the loss (MSE, without the regularization penalty),
-  with their standard deviation across initializations and the number of runs still
-  training at each epoch, for every configuration in ranking order;
-- `curves/rankNN.png`: those curves for the first `plot_top` configurations (10 by
-  default), in the same style as `learning_curve.png` plus a band of one standard
-  deviation: the MSE on the left, the selection metric on the right. With early
-  stopping, runs end at different epochs: from the first stop on, the mean is
-  taken over the runs still training;
-- `curves/top_val.png`: the mean validation curves of those configurations together
-  (loss on the left, selection metric on the right);
-- `learning_curve.png`: a copy of the plot of the best configuration.
+- `curves.json`: mean training and validation curves of the metric and, under
+  `loss`, of the MSE, with the standard deviation across initializations and
+  the number of runs still training at each epoch, in ranking order
+- `curves/rankNN.png`: those curves for the first `plot_top` configurations (10
+  by default, 0 for none), MSE on the left and metric on the right, with a band
+  of one standard deviation; with early stopping, after the first run stops the
+  mean is over the runs still training
+- `curves/top_val.png`: the mean validation curves of the same configurations
+- `learning_curve.png`: a copy of the best configuration's plot
 
-In its `search` section, `scale: "int"` visits every integer from `start` to
-`stop`, including both endpoints. `scale: "log"` starts at `start` and multiplies
-or divides by `factor` (10 by default) until the next value would pass `stop`.
-For `hidden_layers` and `hidden_units`, a logarithmic sequence must contain only
-integers: for example, `start: 1`, `stop: 8`, `factor: 2` gives `1, 2, 4, 8`.
-To choose specific layer widths without generating every combination, use
-`architectures` instead of `hidden_layers` and `hidden_units`, for example
-`"architectures": [[128, 64], [64, 64, 64]]`. Each list contains the hidden
-units of one architecture; `hidden_activation` and `output` apply to all of them.
-Use either `search` or the older explicit `grid` section. The runner reads one
-input file and records each evaluated configuration in the saved summary.
+`train` and `assess` save `learning_curve.png` (MSE on the left, metric on the
+right, training solid and validation or test dashed) and `history.csv` for the
+trial with the median score on the held-out data (on the training data if
+`train` has no validation split). In `assess` the held-out columns are
+`test_loss` and `test_<metric>`. With `scale: true` the CUP MSE is on
+standardized targets.
 
-## Status
+### Compact search
 
-Scaffolding only (phase **F0** in the guide): package structure, module stubs
-with planned signatures/docstrings, and the experiment entry points. No learning
-logic is implemented yet. Roadmap and phases (F1–F8) are in
-[`context/GUIDA_PROGETTO.md`](context/GUIDA_PROGETTO.md) §4.
+Instead of an explicit `grid`, a `select` config can describe its
+configurations with a `search` section. `scale: "int"` gives every integer from
+`start` to `stop`, both included. `scale: "log"` starts at `start` and
+multiplies or divides by `factor` (10 by default) until the next value would
+pass `stop`; for `hidden_layers` and `hidden_units` it must give integers, for
+example `start: 1`, `stop: 8`, `factor: 2` gives `1, 2, 4, 8`.
+
+To pick some architectures instead of every combination, use `architectures`
+in place of `hidden_layers` and `hidden_units`, for example
+`"architectures": [[128, 64], [64, 64, 64]]`: each list holds the hidden units
+of one architecture, and `hidden_activation` and `output` apply to all of them.
 
 ## References
 
-- Project brief / guide: [`context/GUIDA_PROGETTO.md`](context/GUIDA_PROGETTO.md)
-- Original track: `context/files/ML-25-PRJ-new-v.0.11.pdf`
 - MONK: https://archive.ics.uci.edu/dataset/70/monk+s+problems

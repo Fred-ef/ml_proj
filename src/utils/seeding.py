@@ -1,7 +1,7 @@
-"""Stable, independent random streams derived from one experiment seed.
+"""Independent random streams derived from one experiment seed
 
-The numeric role IDs are part of the reproducibility contract: changing them
-would change the results of existing seeded experiments.
+Do not change the numeric role IDs: the results of existing seeded experiments
+would change too
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ _ROLES = {
 
 
 def resolve_seed(seed: int | None) -> int:
-    """Validate a master seed, or draw one that can be saved and replayed."""
+    """Validate a master seed, or draw one that can be saved and replayed"""
     if seed is None:
         return randbits(64)
     if isinstance(seed, bool) or not isinstance(seed, Integral) or seed < 0:
@@ -36,7 +36,7 @@ def resolve_seed(seed: int | None) -> int:
 
 
 def derive_seed(master_seed: int, role: str, index: int = 0) -> int:
-    """Derive a 64-bit seed without coupling streams or consuming master state."""
+    """Derive a 64-bit seed without coupling streams or consuming master state"""
     if isinstance(index, bool) or not isinstance(index, Integral) or index < 0:
         raise ValueError("seed stream index must be a non-negative integer")
     sequence = np.random.SeedSequence(

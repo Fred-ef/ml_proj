@@ -1,7 +1,7 @@
-"""Learning-curve plotting helpers, in the style of the report figures.
+"""Learning curve plots
 
-Two panels side by side: the MSE on the left, the task metric on the right.
-Training is a solid line, validation (or test) a dashed one, one color each.
+Two panels: MSE on the left, task metric on the right. Training is a solid line,
+validation (or test) a dashed one
 """
 
 from __future__ import annotations
@@ -12,7 +12,7 @@ import numpy as np
 _TRAIN = {"color": "C0", "linestyle": "-"}
 _HELD_OUT = {"color": "C1", "linestyle": "--"}
 _HELD_OUT_LABELS = {"val": "Validation", "test": "Test"}
-# Panel title, y-axis label and legend corner of each curve.
+# panel title, y-axis label and legend corner of each curve
 _PANELS = {"loss": ("MSE", "MSE", "upper right"),
            "acc": ("Accuracy %", "Accuracy", "lower right"),
            "mee": ("MEE", "MEE", "upper right")}
@@ -41,7 +41,7 @@ def _save(fig, save_path: str | None):
 
 def plot_learning_curve(history: dict, metric: str, save_path: str | None = None,
                         held_out: str = "val", loss_label: str = "MSE"):
-    """One run: training against validation (train) or test (assess), MSE and metric."""
+    """One run: training against validation (train) or test (assess), MSE and metric"""
     fig, axes = plt.subplots(1, 2, figsize=(11, 3.8))
     for ax, key in zip(axes, ("loss", metric)):
         train = history.get(key, [])
@@ -55,7 +55,7 @@ def plot_learning_curve(history: dict, metric: str, save_path: str | None = None
 
 
 def _draw_mean_curve(ax, curves: dict) -> None:
-    """Mean training/validation curves with a +-1 std band across initializations."""
+    """Mean training/validation curves with a +-1 std band across initializations"""
     for name, style, label in (("train", _TRAIN, "Training"), ("val", _HELD_OUT, "Validation")):
         curve = curves.get(name)
         if not curve or not curve["mean"]:
@@ -63,14 +63,14 @@ def _draw_mean_curve(ax, curves: dict) -> None:
         mean, std = np.asarray(curve["mean"]), np.asarray(curve["std"])
         epochs = np.arange(1, len(mean) + 1)
         ax.plot(epochs, mean, label=label, **style)
-        # Same color as its line: the band is the spread due to initialization.
+        # band: spread across initializations, same color as the line
         ax.fill_between(epochs, mean - std, mean + std, color=style["color"],
                         alpha=0.2, linewidth=0)
 
 
 def plot_loss_and_metric(curves: dict, metric: str, save_path: str | None = None,
                          title: str | None = None, loss_label: str = "MSE"):
-    """One configuration of a grid: mean MSE and metric with a +-1 std band."""
+    """One configuration of a grid: mean MSE and metric with a +-1 std band"""
     fig, axes = plt.subplots(1, 2, figsize=(11, 3.8))
     for ax, key, data in zip(axes, ("loss", metric), (curves["loss"], curves)):
         _draw_mean_curve(ax, data)
@@ -83,7 +83,7 @@ def plot_loss_and_metric(curves: dict, metric: str, save_path: str | None = None
 def plot_val_loss_and_metric(all_curves: list[dict], labels: list[str], metric: str,
                              save_path: str | None = None, title: str | None = None,
                              loss_label: str = "MSE"):
-    """Mean validation curves of several configurations: MSE and metric."""
+    """Mean validation curves of several configurations: MSE and metric"""
     linestyles = ("-", "--", "-.", ":")
     fig, axes = plt.subplots(1, 2, figsize=(12, 3.8))
     for ax, key in zip(axes, ("loss", metric)):

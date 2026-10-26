@@ -1,15 +1,12 @@
-"""Optimizers (weight update rules).
+"""Optimizers (weight update rules)
 
-Stochastic Gradient Descent (SGD) minimizes the loss by adjusting the weights in
-the opposite direction of the gradient. With momentum, the update (with the L2
-weight decay already included in the gradient) is:
+SGD with momentum, where grad already includes the L2 term:
 
     v = momentum * v - lr * grad
     W = W + v
 
-momentum accumulates velocity along consistent gradient directions and dampens
-oscillations. An optimizer holds its own per-parameter state (e.g. velocity) and
-updates the parameters in place.
+An optimizer keeps its per-parameter state (the velocities) and updates the
+parameters in place
 """
 
 from __future__ import annotations
@@ -19,23 +16,21 @@ import numpy as np
 
 
 class Optimizer:
-    """Base class."""
+    """Base class"""
 
     def step(self, params, grads) -> None:
         raise NotImplementedError
 
     def reset(self) -> None:
-        """Clear internal state (e.g. velocities) between runs."""
+        """Clear the internal state (e.g. velocities) between runs"""
 
 
 class SGD(Optimizer):
-    """Stochastic Gradient Descent with (optional Nesterov) momentum.
+    """SGD with momentum, optionally Nesterov
 
-    Parameters
-    ----------
-    lr : float            learning rate
-    momentum : float      momentum coefficient (0 disables it)
-    nesterov : bool       use Nesterov accelerated gradient (extra comparison)
+    lr        learning rate, a float or a schedule called with the step count
+    momentum  momentum coefficient (0 disables it)
+    nesterov  Nesterov momentum, ignored when momentum is 0
     """
 
     def __init__(self, lr: float | Callable = 0.01, momentum: float = 0.0, nesterov: bool = False) -> None:
@@ -43,36 +38,35 @@ class SGD(Optimizer):
         self.momentum = momentum
         self.nesterov = nesterov and momentum > 0
 
-        # Per-parameter velocity; persists across steps to accumulate momentum.
+        # one velocity per parameter, kept across steps
         self.velocities = None
         self.step_count = 0
 
     def reset(self) -> None:
-        """Clear the accumulated velocities (call between independent runs)."""
+        """Clear the velocities, to be called between independent runs"""
         self.velocities = None
         self.step_count = 0
 
     def step(self, params: list[np.ndarray], grads: list[np.ndarray]) -> None:
-        """Update each parameter in place from its gradient (params/grads aligned)."""
+        """Update each parameter in place with its gradient (params and grads aligned)"""
         current_lr = self.lr(self.step_count) if callable(self.lr) else self.lr
         self.step_count += 1
 
-        # On the first step, allocate a zero velocity array per parameter.
+        # zero velocities on the first step
         if self.velocities is None:
             self.velocities = [np.zeros_like(p) for p in params]
 
         for i, (p, g) in enumerate(zip(params, grads)):
             v = self.velocities[i]
 
-            # New velocity: momentum-weighted previous velocity minus lr * gradient.
+            # v = momentum * v - lr * g
             v_new = self.momentum * v - current_lr * g
             self.velocities[i] = v_new
 
-            # Update in place (+= mutates the layer's arrays directly).
+            # += updates the layer's arrays in place
             if self.nesterov:
-                # Nesterov (Sutskever's reformulation): apply the lookahead
-                # algebraically using the gradient at the current position 'p',
-                # which avoids a second forward/backward pass.
+                # Nesterov in Sutskever's form: the lookahead uses the gradient
+                # at the current p, so no second forward/backward pass is needed
                 p += self.momentum * v_new - current_lr * g
             else:
                 p += v_new
