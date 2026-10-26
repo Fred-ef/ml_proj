@@ -1,0 +1,45 @@
+{
+    "task": "cup",
+    "mode": "assess",
+    "tag": "cup-assess-64x64-relu-he-l2",
+    "config": {
+        "seed": null,
+        "n_trials": 20,
+        "init": "he",
+        "loss": "mse",
+        "epochs": 5000,
+        "batch_size": 32,
+        "scale": true,
+        "patience": 500,
+        "arch": [
+            {
+                "units": 64,
+                "act": "relu"
+            },
+            {
+                "units": 64,
+                "act": "relu"
+            },
+            {
+                "units": 32,
+                "act": "relu"
+            },
+            {
+                "units": 4,
+                "act": "identity"
+            }
+        ],
+        "reg": {
+            "type": "l2",
+            "lam": 0.005
+        },
+        "optim": {
+            "type": "sgd",
+            "lr": 0.01,
+            "momentum": 0.9,
+            "nesterov": true
+        },
+        "val_mean": 21.092330585176704,
+        "val_std": 0.5259589239965923
+    }
+}
