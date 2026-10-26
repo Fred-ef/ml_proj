@@ -121,9 +121,9 @@ def test_top3_compact_search_preserves_the_requested_grid():
             for config in configs} == {None, 0.0001, 0.001, 0.01}
 
 
-def test_cup_coarse2_search_keeps_exact_architectures_and_rates():
+def test_cup_coarse_search_keeps_exact_architectures_and_rates():
     path = (Path(__file__).resolve().parents[1] / "configs" / "cup"
-            / "cup_grid_coarse2.json")
+            / "cup_grid_coarse.json")
     payload = json.loads(path.read_text(encoding="utf-8"))["config"]
     configs = list(iter_search_configs({**payload["fixed"], "n_inputs": 10},
                                        payload["search"]))
@@ -372,9 +372,8 @@ def test_nested_nesterov_with_explicit_momentum_values():
 
 @pytest.mark.parametrize("relative_path, expected_momenta", [
     ("monk1/monk1_grid_coarse_top1.json", {0, 0.6, 0.7, 0.8, 0.9}),
-    ("monk2/monk2_grid_fine1.json", {0.7, 0.75, 0.8, 0.85, 0.9}),
+    ("monk2/monk2_grid_fine.json", {0.7, 0.75, 0.8, 0.85, 0.9}),
     ("monk2/monk2_grid_coarse_top1.json", {0, 0.5, 0.7, 0.9}),
-    ("monk2/monk2_grid_coarse2_full.json", {0, 0.5, 0.6, 0.7, 0.8, 0.9}),
 ])
 def test_existing_nested_nesterov_searches(relative_path, expected_momenta):
     path = Path(__file__).resolve().parents[1] / "configs" / relative_path

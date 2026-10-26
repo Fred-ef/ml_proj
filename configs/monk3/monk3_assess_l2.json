@@ -1,0 +1,41 @@
+{
+    "task": "monk3",
+    "mode": "assess",
+    "tag": "monk3-assess-l2",
+    "config": {
+        "init": "glorot",
+        "init_kwargs": null,
+        "loss": "mse",
+        "epochs": 1000,
+        "batch_size": null,
+        "scale": null,
+        "patience": null,
+        "min_delta": 0.001,
+        "n_inputs": 17,
+        "arch": [
+            {
+                "units": 4,
+                "act": "tanh"
+            },
+            {
+                "units": 1,
+                "act": "sigmoid"
+            }
+        ],
+        "optim": {
+            "type": "sgd",
+            "lr": 0.7,
+            "momentum": 0.9
+        },
+        "reg": {
+            "type": "l2",
+            "lam": 0.01
+        },
+        "n_trials": 50,
+        "seed": 2026,
+        "val_mean": 0.9343333333333333,
+        "val_std": 0.04244735301261761,
+        "cv_stop_target": 0.06787664595404902,
+        "cv_stop_metric": "loss"
+    }
+}

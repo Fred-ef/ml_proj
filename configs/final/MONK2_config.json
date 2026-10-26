@@ -1,0 +1,43 @@
+{
+  "config": {
+    "task": "monk2",
+    "mode": "assess",
+    "tag": "monk2-assess-noreg",
+    "init": "glorot",
+    "init_kwargs": null,
+    "loss": "mse",
+    "epochs": 71,
+    "batch_size": 1,
+    "scale": null,
+    "patience": null,
+    "n_inputs": 17,
+    "arch": [
+      {
+        "units": 4,
+        "act": "tanh"
+      },
+      {
+        "units": 1,
+        "act": "sigmoid"
+      }
+    ],
+    "reg": null,
+    "optim": {
+      "type": "sgd",
+      "momentum": 0.9,
+      "nesterov": true,
+      "lr": 0.08
+    },
+    "n_trials": 50,
+    "seed": 2026,
+    "val_mean": 1.0,
+    "seed_source": "fixed"
+  },
+  "env": {
+    "timestamp": "2026-10-26T10:46:58",
+    "python": "3.12.3",
+    "numpy": "2.4.6",
+    "platform": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+    "processor": "x86_64"
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "config": {
+    "task": "monk3",
+    "mode": "assess",
+    "tag": "monk3-assess-batch-1",
+    "init": "glorot",
+    "init_kwargs": null,
+    "loss": "mse",
+    "epochs": 300,
+    "batch_size": null,
+    "scale": null,
+    "reg": null,
+    "patience": null,
+    "n_inputs": 17,
+    "arch": [
+      {
+        "units": 4,
+        "act": "tanh"
+      },
+      {
+        "units": 1,
+        "act": "sigmoid"
+      }
+    ],
+    "optim": {
+      "type": "sgd",
+      "lr": 0.5
+    },
+    "seed": 411941579083569514,
+    "n_trials": 50,
+    "seed_source": "generated"
+  },
+  "env": {
+    "timestamp": "2026-10-26T04:55:06",
+    "python": "3.14.6",
+    "numpy": "2.5.0",
+    "platform": "Windows-11-10.0.26300-SP0",
+    "processor": "Intel64 Family 6 Model 186 Stepping 2, GenuineIntel"
+  }
+}

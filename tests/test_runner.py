@@ -98,6 +98,19 @@ def _assert_assess_curves_are_on_the_test_set(assess_dir, metric):
     assert (assess_dir / "learning_curve.png").exists()
 
 
+def test_assess_reports_the_mse_of_the_final_model(tmp_path):
+    assess_dir = run_experiment("monk1", "assess", _tiny_monk1_payload(n_trials=1),
+                                tag="pytest-assess-mse", results_root=tmp_path)
+    summary = json.loads((assess_dir / "summary.json").read_text())
+    with open(assess_dir / "history.csv", newline="") as f:
+        last = list(csv.DictReader(f))[-1]
+
+    # no early stopping in assess: the final model is the one of the last epoch
+    assert summary["loss_tr_mean"] == pytest.approx(float(last["loss"]))
+    assert summary["loss_ts_mean"] == pytest.approx(float(last["test_loss"]))
+    assert summary["loss_tr_std"] == summary["loss_ts_std"] == 0.0
+
+
 # --- engine: select then assess ----------------------------------------------
 
 def test_run_experiment_select_then_assess_chain(tmp_path):

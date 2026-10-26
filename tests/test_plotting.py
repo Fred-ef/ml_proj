@@ -1,6 +1,7 @@
 """Two-panel plots: MSE on the left, task metric on the right, training as a solid
 line and validation (or test) as a dashed one"""
 
+import pytest
 from matplotlib.colors import to_hex
 
 from src.utils import plotting
@@ -38,12 +39,12 @@ def test_assessment_plot_matches_the_report_figure():
 
     assert (left.get_title(), left.get_xlabel(), left.get_ylabel()) == ("MSE", "Epoch", "MSE")
     assert (right.get_title(), right.get_xlabel(), right.get_ylabel()) == (
-        "Accuracy %", "Epoch", "Accuracy")
+        "Accuracy (%)", "Epoch", "Accuracy (%)")
     for ax in (left, right):
         assert _legend(ax) == ["Training", "Test"]
         assert _styles(ax) == [SOLID_BLUE, DASHED_ORANGE]
     assert _ydata(left) == [[0.25, 0.10], [0.24, 0.12]]
-    assert _ydata(right) == [[0.5, 0.9], [0.6, 0.8]]
+    assert _ydata(right) == [pytest.approx([50, 90]), pytest.approx([60, 80])]      # in percent
 
 
 def test_cup_assessment_plot_shows_the_mee_and_the_scaled_loss():
@@ -74,9 +75,9 @@ def test_grid_plot_draws_mean_curves_with_a_band_in_the_same_style():
 
     left, right = plotting.plot_loss_and_metric(curves, "acc").axes
 
-    assert (left.get_title(), right.get_title()) == ("MSE", "Accuracy %")
+    assert (left.get_title(), right.get_title()) == ("MSE", "Accuracy (%)")
     assert _ydata(left) == [[0.25, 0.10], [0.25, 0.15]]       # training and validation loss
-    assert _ydata(right) == [[0.5, 0.8], [0.4, 0.7]]          # training and validation metric
+    assert _ydata(right) == [pytest.approx([50, 80]), pytest.approx([40, 70])]
     for ax in (left, right):
         assert _legend(ax) == ["Training", "Validation"]
         assert _styles(ax) == [SOLID_BLUE, DASHED_ORANGE]
@@ -103,7 +104,7 @@ def test_comparison_plot_overlays_the_validation_curves_of_the_configurations():
 
     left, right = plotting.plot_val_loss_and_metric([first, second], ["a", "b"], "acc").axes
 
-    assert (left.get_title(), right.get_title()) == ("MSE (validation)", "Accuracy % (validation)")
+    assert (left.get_title(), right.get_title()) == ("MSE (validation)", "Accuracy (%) (validation)")
     assert _ydata(left) == [[0.25, 0.15], [0.25, 0.22]]
-    assert _ydata(right) == [[0.4, 0.7], [0.4, 0.5]]
+    assert _ydata(right) == [pytest.approx([40, 70]), pytest.approx([40, 50])]
     assert _legend(right) == ["a", "b"]

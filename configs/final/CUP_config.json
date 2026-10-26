@@ -1,0 +1,54 @@
+{
+  "config": {
+    "task": "cup",
+    "mode": "assess",
+    "tag": "cup-assess-64x64-relu-he-l2",
+    "seed": 16942038539992319099,
+    "n_trials": 30,
+    "init": "he",
+    "loss": "mse",
+    "epochs": 10000,
+    "batch_size": null,
+    "scale": true,
+    "patience": null,
+    "n_inputs": 12,
+    "arch": [
+      {
+        "units": 64,
+        "act": "relu"
+      },
+      {
+        "units": 64,
+        "act": "relu"
+      },
+      {
+        "units": 4,
+        "act": "identity"
+      }
+    ],
+    "reg": {
+      "type": "l2",
+      "lam": 0.01
+    },
+    "optim": {
+      "type": "sgd",
+      "lr": 0.01,
+      "momentum": 0.9,
+      "nesterov": false
+    },
+    "cv_stop_target": 16.689531177411517,
+    "cv_stop_metric": "mee",
+    "seed_source": "generated",
+    "internal_test_split": {
+      "fraction": 0.2,
+      "seed": 0
+    }
+  },
+  "env": {
+    "timestamp": "2026-10-26T09:40:58",
+    "python": "3.14.6",
+    "numpy": "2.5.0",
+    "platform": "Windows-11-10.0.26300-SP0",
+    "processor": "Intel64 Family 6 Model 186 Stepping 2, GenuineIntel"
+  }
+}

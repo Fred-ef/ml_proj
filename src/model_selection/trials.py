@@ -50,6 +50,7 @@ def run_trials(config: dict, X_tr, y_tr, X_te, y_te, metrics: dict,
         seed_plan["split"] = split_seed
 
     eval_score, train_score, histories = [], [], []
+    eval_loss, train_loss = [], []
     selected_epochs, epochs_run = [], []
     target_reached, target_final_errors = [], []
     for i in range(n_trials):
@@ -107,6 +108,10 @@ def run_trials(config: dict, X_tr, y_tr, X_te, y_te, metrics: dict,
 
         pred_tr = model.predict(X_tr_i)
         pred_ev = model.predict(X_ev_i) if X_ev_i is not None else None
+        # training loss of the final model, without the penalty term
+        train_loss.append(model.loss.value(pred_tr, y_tr_i))
+        if pred_ev is not None:
+            eval_loss.append(model.loss.value(pred_ev, y_ev_i))
         
         # with scaled targets, undo the scaling to compute score_fn (MEE) in the
         # original units
@@ -131,6 +136,8 @@ def run_trials(config: dict, X_tr, y_tr, X_te, y_te, metrics: dict,
     summary = {
         f"train_{score_name}_mean": float(np.mean(train_score)),
         f"train_{score_name}_std":  float(np.std(train_score)),
+        "train_loss_mean": float(np.mean(train_loss)),
+        "train_loss_std": float(np.std(train_loss)),
         "n_trials": n_trials,
         "representative_trial": rep,
         "seed_plan": seed_plan,
@@ -140,6 +147,8 @@ def run_trials(config: dict, X_tr, y_tr, X_te, y_te, metrics: dict,
         summary.update({
             f"{label}_{score_name}_mean": float(np.mean(eval_score)),
             f"{label}_{score_name}_std": float(np.std(eval_score)),
+            f"{label}_loss_mean": float(np.mean(eval_loss)),
+            f"{label}_loss_std": float(np.std(eval_loss)),
             (f"per_trial_{score_name}" if stage == "assess" else
              f"per_trial_val_{score_name}"): [float(a) for a in eval_score],
         })

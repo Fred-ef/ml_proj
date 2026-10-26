@@ -496,7 +496,9 @@ def test_run_trials_summary_uses_the_dynamic_score_name():
 
     assert set(summary) == {"test_mee_mean", "test_mee_std", "train_mee_mean",
                             "train_mee_std", "per_trial_mee", "n_trials",
-                            "representative_trial", "seed_plan"}
+                            "representative_trial", "seed_plan",
+                            "train_loss_mean", "train_loss_std",
+                            "test_loss_mean", "test_loss_std"}
     assert len(histories) == 3
     assert len(summary["per_trial_mee"]) == 3
     assert 0 <= summary["representative_trial"] < 3

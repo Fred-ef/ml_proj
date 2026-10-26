@@ -7,6 +7,7 @@ from src.model_selection.holdout import holdout_validate
 from src.model_selection.kfold import cross_validate
 from src.model_selection.scaling import prepare_split
 from src.model_selection.trials import run_trials
+from src.nn.losses import MSE
 from src.utils.metrics import accuracy, mee
 
 
@@ -73,6 +74,8 @@ def test_train_trials_monitors_original_mee_and_records_selected_epoch(monkeypat
                         lambda n, fraction, seed: (np.array([0, 1]), np.array([2])))
 
     class TrialModel(TwoEpochModel):
+        loss = MSE()
+
         def predict(self, x):
             return np.zeros((len(x), 2))
 

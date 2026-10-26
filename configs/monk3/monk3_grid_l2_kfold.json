@@ -1,0 +1,103 @@
+{
+    "task": "monk3",
+    "mode": "select",
+    "tag": "monk3-grid-l2-kfold",
+    "config": {
+        "stratify": false,
+        "seed": 2026,
+        "n_core": 16,
+        "n_trials": 10,
+        "plot_top": 10,
+        "k": 5,
+        "fixed": {
+            "init": "glorot",
+            "init_kwargs": null,
+            "loss": "mse",
+            "epochs": 1000,
+            "batch_size": null,
+            "scale": null,
+            "patience": 40,
+            "min_delta": 0.001
+        },
+        "grid": {
+            "arch": [
+                [
+                    {
+                        "units": 4,
+                        "act": "tanh"
+                    },
+                    {
+                        "units": 1,
+                        "act": "sigmoid"
+                    }
+                ]
+            ],
+            "optim": [
+                {
+                    "type": "sgd",
+                    "lr": 0.3
+                },
+                {
+                    "type": "sgd",
+                    "lr": 0.3,
+                    "momentum": 0.5
+                },
+                {
+                    "type": "sgd",
+                    "lr": 0.3,
+                    "momentum": 0.9
+                },
+                {
+                    "type": "sgd",
+                    "lr": 0.5
+                },
+                {
+                    "type": "sgd",
+                    "lr": 0.5,
+                    "momentum": 0.5
+                },
+                {
+                    "type": "sgd",
+                    "lr": 0.5,
+                    "momentum": 0.9
+                },
+                {
+                    "type": "sgd",
+                    "lr": 0.7
+                },
+                {
+                    "type": "sgd",
+                    "lr": 0.7,
+                    "momentum": 0.5
+                },
+                {
+                    "type": "sgd",
+                    "lr": 0.7,
+                    "momentum": 0.9
+                }
+            ],
+            "reg": [
+                {
+                    "type": "l2",
+                    "lam": 0.0001
+                },
+                {
+                    "type": "l2",
+                    "lam": 0.0003
+                },
+                {
+                    "type": "l2",
+                    "lam": 0.001
+                },
+                {
+                    "type": "l2",
+                    "lam": 0.003
+                },
+                {
+                    "type": "l2",
+                    "lam": 0.01
+                }
+            ]
+        }
+    }
+}
