@@ -1,7 +1,7 @@
 """ML-CUP25 loading and internal test split
 
-``ML-CUP25-TR.csv``: 500 rows, id, x1..x12 (inputs), t1..t4 (targets)
-``ML-CUP25-TS.csv``: 1000 rows, id, x1..x12 (blind test, no targets)
+'ML-CUP25-TR.csv': 500 rows, id, x1..x12 (inputs), t1..t4 (targets)
+'ML-CUP25-TS.csv': 1000 rows, id, x1..x12 (blind test, no targets)
 Header lines start with '#'
 """
 

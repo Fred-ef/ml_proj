@@ -10,7 +10,7 @@ import numpy as np
 
 
 class Regularizer:
-    """Base class, ``lam`` is the regularization coefficient (lambda)"""
+    """Base class, 'lam' is the regularization coefficient (lambda)"""
 
     def __init__(self, lam: float = 0.0) -> None:
         self.lam = lam

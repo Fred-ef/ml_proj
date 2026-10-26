@@ -1,8 +1,8 @@
-"""Training losses (MEE is only a reporting metric, see ``utils.metrics``)
+"""Training losses (MEE is only a reporting metric, see 'utils.metrics')
 
 Each loss exposes:
-    - ``value(y_pred, y_true)`` -> scalar
-    - ``gradient(y_pred, y_true)`` -> d loss / d y_pred, same shape as y_pred
+    - 'value(y_pred, y_true)' -> scalar
+    - 'gradient(y_pred, y_true)' -> d loss / d y_pred, same shape as y_pred
 """
 
 from __future__ import annotations

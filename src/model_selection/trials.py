@@ -1,7 +1,7 @@
 """Repeated training of one configuration (train and assess modes)
 
-The configuration is trained with ``n_trials`` seeds and the scores are reported
-as mean and std over the trials. The score is passed as ``score_fn``/``score_name``
+The configuration is trained with 'n_trials' seeds and the scores are reported
+as mean and std over the trials. The score is passed as 'score_fn'/'score_name'
 (accuracy for MONK, MEE for CUP)
 """
 
@@ -56,7 +56,7 @@ def run_trials(config: dict, X_tr, y_tr, X_te, y_te, metrics: dict,
         cfg_i = {**config, "seed": seed_plan["trials"][i]["weights"],
                  "shuffle_seed": seed_plan["trials"][i]["shuffle"]}
         
-        # Facciamo una copia locale dei dati in modo che i fold/trial siano indipendenti
+        # local copy of the data, so that folds and trials stay independent
         X_tr_i = np.copy(X_tr if train_idx is None else X_tr[train_idx])
         y_tr_i = np.copy(y_tr if train_idx is None else y_tr[train_idx])
         X_ev_i = (np.copy(X_te) if stage == "assess" else
@@ -108,8 +108,8 @@ def run_trials(config: dict, X_tr, y_tr, X_te, y_te, metrics: dict,
         pred_tr = model.predict(X_tr_i)
         pred_ev = model.predict(X_ev_i) if X_ev_i is not None else None
         
-        # Se abbiamo scalato le Y, per calcolare il vero score_fn (MEE) dobbiamo 
-        # invertire la trasformazione per tornare alla scala originale
+        # with scaled targets, undo the scaling to compute score_fn (MEE) in the
+        # original units
         if scaler_Y is not None:
             pred_tr = scaler_Y.inverse_transform(pred_tr)
             if pred_ev is not None:

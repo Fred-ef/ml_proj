@@ -312,7 +312,7 @@ def test_run_experiment_select_does_not_pollute_the_index_with_nested_fields(tmp
     assert "best_config" not in row
 
 
-# --- cup: registered with a restricted mode set (no plain `train`) -----------
+# --- cup: registered with a restricted mode set (no plain 'train') -----------
 # CUP follows the select/assess workflow; plain train remains unavailable
 
 def test_cup_profile_uses_mee_and_forbids_plain_train():

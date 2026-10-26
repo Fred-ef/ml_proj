@@ -3,7 +3,7 @@
 The 6 attributes have 3, 3, 2, 3, 4 and 2 values, so the one-hot input has 17
 units, targets are 0/1
 
-Files in ``data/monk/``: monks-{1,2,3}.{train,test}, rows ``class a1 a2 a3 a4 a5 a6 id``
+Files in 'data/monk/': monks-{1,2,3}.{train,test}, rows 'class a1 a2 a3 a4 a5 a6 id'
 """
 
 from __future__ import annotations

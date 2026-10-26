@@ -1,8 +1,8 @@
 """Saving runs to disk
 
-Each run gets a directory `results/<task>/<run_id>/` with config and environment,
+Each run gets a directory 'results/<task>/<run_id>/' with config and environment,
 summary (final metrics, mean/std over trials) and per-epoch curves.
-`index.jsonl` gets one row per run, to compare them
+'index.jsonl' gets one row per run, to compare them
 """
 
 from __future__ import annotations
@@ -59,7 +59,7 @@ def make_run_id(tag: str, seed: int | None = None) -> str:
 
 
 def new_run_dir(results_root: str | Path, task: str, tag: str, seed: int | None = None) -> Path:
-    """Create and return ``<results_root>/<task>/<run_id>/`` (parents included)"""
+    """Create and return '<results_root>/<task>/<run_id>/' (parents included)"""
     run_dir = Path(results_root) / task / make_run_id(tag, seed)
     run_dir.mkdir(parents=True, exist_ok=True)
     return run_dir

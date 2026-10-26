@@ -88,7 +88,7 @@ def _loss_label(config: dict) -> str:
 
 def _plot_grid_curves(run_dir: Path, task: str, metric: str, ranking: list[dict],
                       curves: list[dict], top: int) -> None:
-    """Band plot for each of the first `top` configurations, plus a comparison"""
+    """Band plot for each of the first 'top' configurations, plus a comparison"""
     shown = min(top, len(ranking))
     if shown == 0:
         return

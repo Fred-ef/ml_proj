@@ -43,7 +43,7 @@ class Dense:
         self.b = np.zeros((1, self.n_out))
 
     def forward(self, x: np.ndarray) -> np.ndarray:
-        """Return the layer activation for a batch ``x`` of shape (N, n_in)"""
+        """Return the layer activation for a batch 'x' of shape (N, n_in)"""
         self._x_cache = x
         z = x @ self.W + self.b
         self._z_cache = z
@@ -51,7 +51,7 @@ class Dense:
         return a
 
     def backward(self, grad_out: np.ndarray) -> np.ndarray:
-        """Backpropagate ``grad_out`` (dL/dA), store dW/db, return dL/dA_prev"""
+        """Backpropagate 'grad_out' (dL/dA), store dW/db, return dL/dA_prev"""
         sigma_prime = self.activation.backward(self._z_cache)
         delta = grad_out * sigma_prime
         self.dW = self._x_cache.T @ delta

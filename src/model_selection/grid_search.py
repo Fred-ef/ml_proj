@@ -26,7 +26,7 @@ def iter_grid(param_grid: dict[str, Iterable]):
 def _evaluate_config(position, build_model, config, X, Y, k, seed, metric, split, n_trials):
     """Evaluate one configuration with holdout or k-fold validation
 
-    The configuration is trained ``n_trials`` times with different weight
+    The configuration is trained 'n_trials' times with different weight
     initializations on the same split, and the scores are aggregated over the
     trials. Module-level so it can be pickled for the worker processes; it only
     depends on its arguments, so parallel and sequential runs give the same results
@@ -127,8 +127,8 @@ def grid_search(param_grid: Mapping[str, Iterable] | Iterable[dict], build_model
     """Evaluate every config, return the ranking and the seed plan
 
     param_grid is a mapping of grid axes or an iterable of complete configs.
-    ``k=None`` uses one shared holdout split (20% validation by default),
-    ``k>=2`` uses k-fold CV. n_core: 1/None sequential (default), -1 all cores,
+    'k=None' uses one shared holdout split (20% validation by default),
+    'k>=2' uses k-fold CV. n_core: 1/None sequential (default), -1 all cores,
     -2 all but one, N a fixed number of processes
     """
     if metric != "loss" and metric not in METRICS:

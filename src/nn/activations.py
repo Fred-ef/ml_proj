@@ -1,7 +1,7 @@
 """Activation functions: Identity, Sigmoid, Tanh, ReLU
 
-``forward(z)`` returns the activation, ``backward(z)`` its elementwise derivative
-with respect to the pre-activation ``z``
+'forward(z)' returns the activation, 'backward(z)' its elementwise derivative
+with respect to the pre-activation 'z'
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ class Activation:
         raise NotImplementedError
 
     def backward(self, z: np.ndarray) -> np.ndarray:
-        """Elementwise derivative da/dz at ``z``"""
+        """Elementwise derivative da/dz at 'z'"""
         raise NotImplementedError
 
 

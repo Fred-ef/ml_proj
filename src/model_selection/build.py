@@ -23,7 +23,7 @@ _LR_SCHEDULES = {"linear_decay": LinearDecay}
 
 
 def build_model(config: dict) -> Network:
-    """Costruisce una Network FRESCA (pesi + optimizer nuovi) da una config"""
+    """Build a fresh Network (new weights and optimizer) from a config"""
     n_in = config["n_inputs"]
     layers = []
     for spec in config["arch"]:

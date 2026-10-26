@@ -18,7 +18,7 @@ _BLAS_ENV_VARS = ("OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS",
 
 
 def resolve_workers(n_core: int | None, n_tasks: int) -> int:
-    """Map a config's ``n_core`` to a concrete worker-process count:
+    """Map a config's 'n_core' to a concrete worker-process count:
 
     - None or 1 => 1 (run in the main process)
     - -1 => all cores

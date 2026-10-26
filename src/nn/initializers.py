@@ -11,7 +11,7 @@ import numpy as np
 
 
 class Initializer:
-    """Base class, returns a weight matrix of shape ``(n_in, n_out)``"""
+    """Base class, returns a weight matrix of shape '(n_in, n_out)'"""
 
     def __call__(self, n_in: int, n_out: int, rng: np.random.Generator) -> np.ndarray:
         raise NotImplementedError

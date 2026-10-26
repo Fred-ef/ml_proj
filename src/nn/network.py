@@ -1,6 +1,6 @@
 """Multilayer perceptron: a stack of Dense layers plus the training loop
 
-``fit`` / ``predict`` API; ``history`` keeps the per-epoch loss and metrics
+'fit' / 'predict' API; 'history' keeps the per-epoch loss and metrics
 """
 
 from __future__ import annotations

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 
 class LinearDecay:
-    """Linear decay from `eta_0` to `eta_tau` over `tau` epochs, then constant"""
+    """Linear decay from 'eta_0' to 'eta_tau' over 'tau' epochs, then constant"""
 
     def __init__(self, eta_0: float, tau: int, eta_tau: float | None = None) -> None:
         self.eta_0 = eta_0
