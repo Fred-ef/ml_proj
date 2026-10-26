@@ -131,6 +131,5 @@ def holdout_validate(build_model, config: dict, X, Y, train_idx, val_idx,
         "train_curves": [history[train_key]],
         "val_curves": [history[val_key]],
         "train_loss_curves": [history["loss"]],
-        "val_loss_curves": [history["val_loss"]],
-        "objective_curves": [history.get("objective", history["loss"])]
+        "val_loss_curves": [history["val_loss"]]
     }

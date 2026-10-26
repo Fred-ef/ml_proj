@@ -77,11 +77,22 @@ creates one reproducible holdout from the training data (20% by default, or
 `val_fraction` if set) and uses the task's validation metric for early stopping.
 Without `patience` or `val_fraction`, it trains on all available training examples and
 reports only training scores. `select` uses its own holdout or k-fold validation
-to compare configurations. `assess` trains for the fixed `epochs` and evaluates
-the held-out test set only after training; any carried-over `patience` setting
-has no effect in this mode.
+to compare configurations. `assess` trains for the fixed `epochs` and scores
+the held-out test set after training; any carried-over `patience` setting
+has no effect in this mode. The test set is also recorded epoch by epoch, only
+to draw its learning curve: with no early stopping, no choice depends on it, and
+the trained models are the same as without it.
 Set `assess.config.epochs` to the chosen configuration's
 `best_epoch_median` from `select`; the CLI does not copy it automatically.
+
+`learning_curve.png` of a `train` or `assess` run has two panels, in the style of
+the report figures: the MSE on the left and the task metric on the right
+(accuracy for MONK, MEE for CUP), with training as a solid line and the test set
+(`assess`) or the validation split (`train`) as a dashed line. It shows the trial
+with the median score on that held-out data (on the training data if `train` has no
+validation split), and `history.csv` holds its curves:
+in `assess` the held-out columns are named `test_loss` and `test_<metric>`.
+With `scale: true` the CUP MSE is measured on standardized targets.
 
 For MONK classification, set `config.stratify: true` to preserve class
 proportions in a holdout split. This works in `select` with holdout validation
@@ -149,15 +160,14 @@ much the error changes with the data.
 The run directory also contains:
 
 - `curves.json`: mean per-epoch train and validation curves of the selection metric
-  and, under the `loss` key, of the loss (MSE) and of the training objective (loss
-  plus regularization penalty), with their standard deviation across initializations
-  and the number of runs still training at each epoch, for every configuration in
-  ranking order;
+  and, under the `loss` key, of the loss (MSE, without the regularization penalty),
+  with their standard deviation across initializations and the number of runs still
+  training at each epoch, for every configuration in ranking order;
 - `curves/rankNN.png`: those curves for the first `plot_top` configurations (10 by
-  default), with a band of one standard deviation: the loss on the left (with
-  regularization, also the objective the optimizer minimizes), the selection metric
-  on the right. With early stopping, runs end at different epochs: the shaded region
-  marks the epochs where the mean is taken over fewer runs;
+  default), in the same style as `learning_curve.png` plus a band of one standard
+  deviation: the MSE on the left, the selection metric on the right. With early
+  stopping, runs end at different epochs: from the first stop on, the mean is
+  taken over the runs still training;
 - `curves/top_val.png`: the mean validation curves of those configurations together
   (loss on the left, selection metric on the right);
 - `learning_curve.png`: a copy of the plot of the best configuration.

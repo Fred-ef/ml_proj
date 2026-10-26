@@ -107,7 +107,7 @@ def test_cross_validate_default_metric_is_loss():
                            "train_loss_std", "best_epoch_median", "best_epochs",
                            "epochs_run", "train_scores", "val_scores",
                            "train_curves", "val_curves",
-                           "train_loss_curves", "val_loss_curves", "objective_curves"}
+                           "train_loss_curves", "val_loss_curves"}
 
 
 # --- cross_validate: epoch selection (deterministic, no training) ------------
@@ -401,7 +401,6 @@ def test_grid_search_holdout_uses_one_split_and_reports_classification_errors(
             "val_curves": [[0.7 - 0.1 * candidate]],
             "train_loss_curves": [[0.2 + 0.1 * candidate]],
             "val_loss_curves": [[0.5, 0.4, 0.3 + 0.1 * candidate]],  # best epoch 3: third value
-            "objective_curves": [[0.2 + 0.1 * candidate]],
         }
 
     monkeypatch.setattr(grid_module, "holdout_validate", fake_holdout_validate)
@@ -517,29 +516,37 @@ def test_run_trials_representative_trial_is_the_median_by_score():
     assert scores[rep] == sorted(scores)[len(scores) // 2]
 
 
-def test_run_trials_never_uses_test_set_during_fit(monkeypatch):
-    """Assessment scores the test set only after fixed-epoch training."""
+def test_run_trials_never_lets_the_test_set_influence_training(monkeypatch):
+    """Assessment trains for the fixed epochs without early stopping. The test set is
+    only recorded epoch by epoch for the learning curve: removing it from fit changes
+    neither the training curves nor any score."""
     fit_calls = []
     original_fit = Network.fit
 
     def spy_fit(self, *args, **kwargs):
-        fit_calls.append((kwargs.get("early_stopping"), kwargs.get("validation_data")))
+        fit_calls.append(kwargs.get("early_stopping"))
         return original_fit(self, *args, **kwargs)
 
-    monkeypatch.setattr(Network, "fit", spy_fit)
+    def fit_without_test_set(self, *args, **kwargs):
+        return original_fit(self, *args, **{**kwargs, "validation_data": None})
+
     X, Y = regression_data()
     Xte, Yte = regression_data(seed=1)
+    for config in (regression_config(epochs=5, n_trials=2),
+                   regression_config(epochs=5, n_trials=2, patience=3)):
+        monkeypatch.setattr(Network, "fit", spy_fit)
+        fit_calls.clear()
+        summary, histories = run_trials(config, X, Y, Xte, Yte, metrics={},
+                                        score_fn=mee, score_name="mee")
+        assert fit_calls and all(es is None for es in fit_calls)
+        assert all(len(history["loss"]) == len(history["val_loss"]) == 5
+                   for history in histories)
 
-    run_trials(regression_config(epochs=5, n_trials=2), X, Y, Xte, Yte,
-              metrics={}, score_fn=mee, score_name="mee")
-    assert all(es is None and validation is None for es, validation in fit_calls)
-
-    fit_calls.clear()
-    _, histories = run_trials(regression_config(epochs=5, n_trials=2, patience=3),
-                              X, Y, Xte, Yte, metrics={}, score_fn=mee,
-                              score_name="mee")
-    assert all(es is None and validation is None for es, validation in fit_calls)
-    assert all(len(history["loss"]) == 5 for history in histories)
+        monkeypatch.setattr(Network, "fit", fit_without_test_set)
+        blind_summary, blind_histories = run_trials(config, X, Y, Xte, Yte, metrics={},
+                                                    score_fn=mee, score_name="mee")
+        assert summary == blind_summary
+        assert [h["loss"] for h in histories] == [h["loss"] for h in blind_histories]
 
 
 def test_train_trials_use_internal_validation_and_never_touch_test(monkeypatch):

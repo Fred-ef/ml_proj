@@ -89,9 +89,11 @@ def run_trials(config: dict, X_tr, y_tr, X_te, y_te, metrics: dict,
                             else "min")
               if patience is not None else None)
 
+        # In assess the test set is only recorded epoch by epoch for the learning
+        # curve: there is no early stopping, so no choice depends on it.
         history = model.fit(X_tr_i, y_tr_i, epochs=cfg_i["epochs"],
                             batch_size=cfg_i.get("batch_size"),
-                            validation_data=((X_ev_i, y_ev_i) if use_validation else None),
+                            validation_data=((X_ev_i, y_ev_i) if X_ev_i is not None else None),
                             metrics=fit_metrics,
                             early_stopping=es)
 

@@ -62,8 +62,7 @@ def test_grid_search_repeats_each_config_over_initializations(monkeypatch):
                 "best_epoch_median": 2, "best_epochs": [2], "epochs_run": [2],
                 "train_scores": [val / 2], "val_scores": [val],
                 "train_curves": [[1.0, val / 2]], "val_curves": [[1.0, val]],
-                "train_loss_curves": [[3.0, val / 2]], "val_loss_curves": [[4.0, val]],
-                "objective_curves": [[5.0, val]]}
+                "train_loss_curves": [[3.0, val / 2]], "val_loss_curves": [[4.0, val]]}
 
     monkeypatch.setattr(grid_module, "holdout_validate", fake_holdout_validate)
     X = np.arange(10).reshape(-1, 1)
@@ -84,7 +83,6 @@ def test_grid_search_repeats_each_config_over_initializations(monkeypatch):
     # The loss curves are aggregated on their own, apart from the metric curves.
     assert best["curves"]["loss"]["val"]["mean"] == pytest.approx([4.0, 0.01])
     assert best["curves"]["loss"]["train"]["mean"] == pytest.approx([3.0, 0.005])
-    assert best["curves"]["loss"]["objective"]["mean"] == pytest.approx([5.0, 0.01])
     assert best["curves"]["loss"]["val"]["n_alive"] == [3, 3]
     assert best["epochs_run"] == [2, 2, 2]
 

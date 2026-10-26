@@ -24,8 +24,7 @@ def _fake_holdout(build_model, config, X, Y, train_idx, val_idx, seed=None, metr
     return {"best_epoch_median": epoch, "best_epochs": [epoch], "epochs_run": [len(curve)],
             "train_scores": [acc], "val_scores": [acc],
             "train_curves": [[acc] * len(curve)], "val_curves": [[acc] * len(curve)],
-            "train_loss_curves": [curve], "val_loss_curves": [curve],
-            "objective_curves": [curve]}
+            "train_loss_curves": [curve], "val_loss_curves": [curve]}
 
 
 def _search(monkeypatch, configs, n_trials=1):
@@ -76,8 +75,7 @@ def test_kfold_averages_the_validation_loss_over_folds_and_trials(monkeypatch):
         return {"best_epoch_median": 2, "best_epochs": [2, 1], "epochs_run": [2, 2],
                 "train_scores": [1.0, 1.0], "val_scores": [1.0, 1.0],
                 "train_curves": curves, "val_curves": curves,
-                "train_loss_curves": curves, "val_loss_curves": curves,
-                "objective_curves": curves}
+                "train_loss_curves": curves, "val_loss_curves": curves}
 
     monkeypatch.setattr(grid_module, "cross_validate", fake_cross_validate)
     X, Y = np.arange(10).reshape(-1, 1), np.zeros((10, 1))

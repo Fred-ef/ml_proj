@@ -7,6 +7,7 @@ and run persistence/indexing
 Run from the project root:  pytest tests/test_runner.py -v
 """
 
+import csv
 import json
 from pathlib import Path
 
@@ -87,6 +88,19 @@ def test_run_experiment_train_produces_the_expected_artifacts(tmp_path):
     assert index_rows[0]["run_id"] == run_dir.name
 
 
+def _assert_assess_curves_are_on_the_test_set(assess_dir, metric):
+    """history.csv holds training and test curves; the test one ends at the reported score."""
+    summary = json.loads((assess_dir / "summary.json").read_text())
+    with open(assess_dir / "history.csv", newline="") as f:
+        rows = list(csv.DictReader(f))
+    assert list(rows[0]) == ["epoch", "loss", "test_loss", metric, f"test_{metric}"]
+    assert len(rows) == json.loads((assess_dir / "config.json").read_text())["config"]["epochs"]
+    rep = summary["representative_trial"]
+    assert float(rows[-1][f"test_{metric}"]) == pytest.approx(
+        summary[f"per_trial_ts_{metric}"][rep])
+    assert (assess_dir / "learning_curve.png").exists()
+
+
 # --- engine: select -> assess chain, exactly as a user would run it ----------
 
 def test_run_experiment_select_then_assess_chain(tmp_path):
@@ -125,6 +139,7 @@ def test_run_experiment_select_then_assess_chain(tmp_path):
     assert {"acc_tr_mean", "acc_ts_mean", "acc_vl_mean"} <= set(assess_summary)
     assert assess_summary["acc_vl_mean"] == chosen["val_mean"]
     assert len(assess_summary["seed_plan"]["trials"]) == 2
+    _assert_assess_curves_are_on_the_test_set(assess_dir, "acc")
 
 
 def test_run_experiment_select_with_holdout_reports_per_config_errors(tmp_path):
@@ -219,8 +234,7 @@ def test_run_experiment_select_with_trials_saves_spread_and_curves(tmp_path, val
             assert entry[name]["n_alive"] == [runs] * 6    # no early stopping: nobody stops
             assert len(entry["loss"][name]["mean"]) == len(entry["loss"][name]["std"]) == 6
             assert entry["loss"][name]["n_alive"] == [runs] * 6
-        # reg is null: the objective (loss + penalty) is the training loss itself.
-        assert entry["loss"]["objective"]["mean"] == entry["loss"]["train"]["mean"]
+        assert set(entry["loss"]) == {"train", "val"}
         # Sanity check: a tiny net starts by answering about 0.5, so the first MSE is about 0.5**2.
         assert entry["loss"]["train"]["mean"][0] == pytest.approx(0.25, abs=0.05)
 
@@ -358,3 +372,4 @@ def test_run_experiment_select_then_assess_chain_on_real_cup_data(tmp_path):
     assert {"mee_tr_mean", "mee_ts_mean", "mee_vl_mean"} <= set(assess_summary)
     assert assess_summary["mee_vl_mean"] == chosen["val_mean"]
     assert assess_summary["mee_ts_mean"] >= 0.0
+    _assert_assess_curves_are_on_the_test_set(assess_dir, "mee")

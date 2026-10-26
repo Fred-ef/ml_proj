@@ -169,7 +169,10 @@ def _assess(payload: dict, data: tuple, profile: TaskProfile):
         table[f"{name}_vl_mean"] = payload["val_mean"]
         table[f"{name}_vl_std"] = payload.get("val_std")
 
-    return table, histories[summary["representative_trial"]]
+    # The held-out curves of an assessment are on the test set: name them test_*.
+    history = {("test_" + key[len("val_"):] if key.startswith("val_") else key): values
+               for key, values in histories[summary["representative_trial"]].items()}
+    return table, history
 
 
 MODES: dict[str, Callable] = {

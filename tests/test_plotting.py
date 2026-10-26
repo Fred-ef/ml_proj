@@ -1,7 +1,7 @@
-"""Two-panel plots: loss on the left, selection metric on the right.
+"""Two-panel plots in the style of the report figures: MSE on the left, the task metric
+on the right, training as a solid line and validation (or test) as a dashed one."""
 
-The functions are reached through the module, so the file can always be collected and
-each test fails on its own until its step is done."""
+from matplotlib.colors import to_hex
 
 from src.utils import plotting
 
@@ -10,10 +10,8 @@ def _curve(mean):
     return {"mean": mean, "std": [0.0] * len(mean), "n_alive": [3] * len(mean)}
 
 
-def _curves(loss_train, loss_val, metric_train, metric_val, objective=None):
+def _curves(loss_train, loss_val, metric_train, metric_val):
     loss = {"train": _curve(loss_train), "val": _curve(loss_val)}
-    if objective is not None:
-        loss["objective"] = _curve(objective)
     return {"train": _curve(metric_train), "val": _curve(metric_val), "loss": loss}
 
 
@@ -25,80 +23,87 @@ def _legend(ax):
     return [text.get_text() for text in ax.get_legend().get_texts()]
 
 
-def test_plot_loss_and_metric_draws_the_loss_on_the_left_and_the_metric_on_the_right():
+def _styles(ax):
+    return [(line.get_linestyle(), to_hex(line.get_color())) for line in ax.lines]
+
+
+SOLID_BLUE, DASHED_ORANGE = ("-", to_hex("C0")), ("--", to_hex("C1"))
+
+
+def test_assessment_plot_matches_the_report_figure():
+    history = {"loss": [0.25, 0.10], "test_loss": [0.24, 0.12],
+               "acc": [0.5, 0.9], "test_acc": [0.6, 0.8]}
+
+    left, right = plotting.plot_learning_curve(history, "acc", held_out="test").axes
+
+    assert (left.get_title(), left.get_xlabel(), left.get_ylabel()) == ("MSE", "Epoch", "MSE")
+    assert (right.get_title(), right.get_xlabel(), right.get_ylabel()) == (
+        "Accuracy %", "Epoch", "Accuracy")
+    for ax in (left, right):
+        assert _legend(ax) == ["Training", "Test"]
+        assert _styles(ax) == [SOLID_BLUE, DASHED_ORANGE]
+    assert _ydata(left) == [[0.25, 0.10], [0.24, 0.12]]
+    assert _ydata(right) == [[0.5, 0.9], [0.6, 0.8]]
+
+
+def test_cup_assessment_plot_shows_the_mee_and_the_scaled_loss():
+    history = {"loss": [1.0, 0.5], "test_loss": [1.1, 0.6],
+               "mee": [30.0, 20.0], "test_mee": [31.0, 22.0]}
+
+    left, right = plotting.plot_learning_curve(history, "mee", held_out="test",
+                                               loss_label="MSE (standardized targets)").axes
+
+    assert left.get_ylabel() == "MSE (standardized targets)"
+    assert (right.get_title(), right.get_ylabel()) == ("MEE", "MEE")
+    assert _ydata(right) == [[30.0, 20.0], [31.0, 22.0]]
+
+
+def test_train_plot_calls_the_held_out_curve_validation_and_omits_it_when_missing():
+    with_validation = {"loss": [0.25, 0.10], "val_loss": [0.25, 0.15],
+                       "acc": [0.5, 0.8], "val_acc": [0.4, 0.7]}
+    left, _ = plotting.plot_learning_curve(with_validation, "acc").axes
+    assert _legend(left) == ["Training", "Validation"]
+
+    left, right = plotting.plot_learning_curve({"loss": [0.25, 0.10], "acc": [0.5, 0.8]},
+                                               "acc").axes
+    assert _legend(left) == _legend(right) == ["Training"]
+
+
+def test_grid_plot_draws_mean_curves_with_a_band_in_the_same_style():
     curves = _curves([0.25, 0.10], [0.25, 0.15], [0.5, 0.8], [0.4, 0.7])
-
-    fig = plotting.plot_loss_and_metric(curves, "acc")
-
-    left, right = fig.axes
-    assert left.get_ylabel() == "loss (MSE)" and right.get_ylabel() == "acc"
-    assert _ydata(left) == [[0.25, 0.10], [0.25, 0.15]]       # train and val loss
-    assert _ydata(right) == [[0.5, 0.8], [0.4, 0.7]]          # train and val metric
-
-
-def test_plot_loss_and_metric_keeps_a_single_panel_for_curves_without_loss():
-    curves = {"train": _curve([0.5, 0.8]), "val": _curve([0.4, 0.7])}
-
-    fig = plotting.plot_loss_and_metric(curves, "acc")
-
-    assert len(fig.axes) == 1 and fig.axes[0].get_ylabel() == "acc"
-
-
-def test_plot_loss_and_metric_marks_the_selected_epoch_on_both_panels():
-    curves = _curves([0.25, 0.10, 0.08], [0.25, 0.15, 0.2], [0.5, 0.8, 0.9], [0.4, 0.7, 0.6])
-
-    fig = plotting.plot_loss_and_metric(curves, "acc", stop_epoch=2)
-
-    for ax in fig.axes:
-        assert "epoca mediana selezionata (2)" in _legend(ax)
-
-
-def test_plot_loss_and_metric_adds_the_objective_when_it_differs_from_the_loss():
-    # With L2 the objective is the training loss plus the penalty: a third curve, on the left only.
-    curves = _curves([0.25, 0.10], [0.25, 0.15], [0.5, 0.8], [0.4, 0.7], objective=[0.30, 0.18])
 
     left, right = plotting.plot_loss_and_metric(curves, "acc").axes
 
-    assert _ydata(left) == [[0.25, 0.10], [0.25, 0.15], [0.30, 0.18]]
-    assert "train + penalità (media)" in _legend(left)
-    assert len(right.lines) == 2
+    assert (left.get_title(), right.get_title()) == ("MSE", "Accuracy %")
+    assert _ydata(left) == [[0.25, 0.10], [0.25, 0.15]]       # training and validation loss
+    assert _ydata(right) == [[0.5, 0.8], [0.4, 0.7]]          # training and validation metric
+    for ax in (left, right):
+        assert _legend(ax) == ["Training", "Validation"]
+        assert _styles(ax) == [SOLID_BLUE, DASHED_ORANGE]
+        assert len(ax.collections) == 2                      # one +-1 std band per curve
 
 
-def test_plot_loss_and_metric_omits_the_objective_without_regularization():
-    # Without a penalty the objective is the training loss itself: no duplicate curve.
-    curves = _curves([0.25, 0.10], [0.25, 0.15], [0.5, 0.8], [0.4, 0.7], objective=[0.25, 0.10])
+def test_grid_plot_with_early_stopping_shows_only_the_two_curves_and_their_bands():
+    # Some runs stop after epoch 2: no shaded region, no selected-epoch line.
+    curves = _curves([0.25, 0.10, 0.08], [0.25, 0.15, 0.2], [0.5, 0.8, 0.9], [0.4, 0.7, 0.6])
+    for curve in (curves["val"], curves["loss"]["val"]):
+        curve["n_alive"] = [3, 3, 1]
 
-    left, _ = plotting.plot_loss_and_metric(curves, "acc").axes
+    fig = plotting.plot_loss_and_metric(curves, "acc")
 
-    assert len(left.lines) == 2
+    for ax in fig.axes:
+        assert _legend(ax) == ["Training", "Validation"]
+        assert len(ax.lines) == 2 and len(ax.collections) == 2
+        assert not ax.patches
 
 
-def test_plot_val_loss_and_metric_compares_the_configurations_on_both_panels():
+def test_comparison_plot_overlays_the_validation_curves_of_the_configurations():
     first = _curves([0.25, 0.10], [0.25, 0.15], [0.5, 0.8], [0.4, 0.7])
     second = _curves([0.25, 0.20], [0.25, 0.22], [0.5, 0.6], [0.4, 0.5])
 
-    fig = plotting.plot_val_loss_and_metric([first, second], ["a", "b"], "val acc")
+    left, right = plotting.plot_val_loss_and_metric([first, second], ["a", "b"], "acc").axes
 
-    left, right = fig.axes
-    assert left.get_ylabel() == "val loss (MSE)" and right.get_ylabel() == "val acc"
+    assert (left.get_title(), right.get_title()) == ("MSE (validation)", "Accuracy % (validation)")
     assert _ydata(left) == [[0.25, 0.15], [0.25, 0.22]]
     assert _ydata(right) == [[0.4, 0.7], [0.4, 0.5]]
-
-
-def test_plot_learning_curve_adds_the_objective_to_the_loss_panel():
-    history = {"loss": [0.25, 0.10], "val_loss": [0.25, 0.15], "objective": [0.30, 0.18],
-               "acc": [0.5, 0.8], "val_acc": [0.4, 0.7]}
-
-    left, right = plotting.plot_learning_curve(history, metrics=("loss", "acc")).axes
-
-    assert _ydata(left) == [[0.25, 0.10], [0.25, 0.15], [0.30, 0.18]]
-    assert "train loss + penalità" in _legend(left)
-    assert len(right.lines) == 2
-
-
-def test_plot_learning_curve_omits_the_objective_without_regularization():
-    history = {"loss": [0.25, 0.10], "val_loss": [0.25, 0.15], "objective": [0.25, 0.10]}
-
-    (ax,) = plotting.plot_learning_curve(history).axes
-
-    assert len(ax.lines) == 2
+    assert _legend(right) == ["a", "b"]

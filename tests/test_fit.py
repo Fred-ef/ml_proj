@@ -166,24 +166,3 @@ def test_fit_fullbatch_none_matches_batch_size_n():
     h_none = overfit_net(seed=7).fit(X, Y, epochs=100, batch_size=None)
     h_full = overfit_net(seed=7).fit(X, Y, epochs=100, batch_size=12)
     np.testing.assert_allclose(h_none["loss"], h_full["loss"])
-
-
-# --- the objective: loss + penalty ------------------------------------------
-
-def test_fit_records_the_objective_as_loss_plus_the_l2_penalty_on_the_weights():
-    X, Y = small_data()
-    lam = 0.01
-    net = overfit_net(regularizer=L2(lam))
-    history = net.fit(X, Y, epochs=20)
-
-    assert len(history["objective"]) == len(history["loss"]) == 20
-    # The last record uses the final weights. Only W is penalized, not the biases.
-    penalty = lam * sum(np.sum(layer.W ** 2) for layer in net.layers)
-    assert history["objective"][-1] == pytest.approx(history["loss"][-1] + penalty)
-    assert all(obj > loss for obj, loss in zip(history["objective"], history["loss"]))
-
-
-def test_fit_objective_is_the_loss_itself_without_regularization():
-    X, Y = small_data()
-    history = overfit_net().fit(X, Y, epochs=20)
-    assert history["objective"] == history["loss"]

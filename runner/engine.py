@@ -62,10 +62,12 @@ def run_experiment(
     save_run(run_dir, saved_config, summary, history=history)
 
     if history is not None:
+        # assess: training against the test set; train: against its validation split.
         plot_learning_curve(
-            history, metrics=("loss", profile.primary),
+            history, profile.primary,
             save_path=str(run_dir / "learning_curve.png"),
-            title=f"{task} — {tag}",
+            held_out="test" if mode == "assess" else "val",
+            loss_label=_loss_label(model_payload),
         )
 
     if curves is not None:
@@ -81,7 +83,7 @@ def run_experiment(
 
 def _loss_label(config: dict) -> str:
     """Axis label of the loss: with scale=true it is measured on standardized targets."""
-    return "loss (MSE, target standardizzati)" if config.get("scale") else "loss (MSE)"
+    return "MSE (standardized targets)" if config.get("scale") else "MSE"
 
 
 def _plot_grid_curves(run_dir: Path, task: str, metric: str, ranking: list[dict],
@@ -93,16 +95,15 @@ def _plot_grid_curves(run_dir: Path, task: str, metric: str, ranking: list[dict]
     plots = run_dir / "curves"
     plots.mkdir(exist_ok=True)
     for rank, (row, entry) in enumerate(zip(ranking[:shown], curves[:shown]), start=1):
-        stopped = row["config"].get("patience") is not None
         plot_loss_and_metric(entry, metric, save_path=str(plots / f"rank{rank:02d}.png"),
-                             title=(f"{task} — configurazione {rank}/{len(ranking)} "
-                                    f"(media su {row.get('n_trials', 1)} init)"),
-                             stop_epoch=row["best_epoch_median"] if stopped else None,
+                             title=(f"{task.upper()} — configuration {rank}/{len(ranking)} "
+                                    f"(mean ± 1 std over {row.get('n_trials', 1)} "
+                                    f"initializations)"),
                              loss_label=_loss_label(row["config"]))
-    plot_val_loss_and_metric(curves[:shown], [f"configurazione {r}" for r in range(1, shown + 1)],
-                             f"val {metric}", save_path=str(plots / "top_val.png"),
-                             title=f"{task} — validation media delle prime {shown}",
-                             loss_label=f"val {_loss_label(ranking[0]['config'])}")
+    plot_val_loss_and_metric(curves[:shown], [f"configuration {r}" for r in range(1, shown + 1)],
+                             metric, save_path=str(plots / "top_val.png"),
+                             title=f"{task.upper()} — mean validation curves of the top {shown}",
+                             loss_label=_loss_label(ranking[0]["config"]))
     # learning_curve.png: for a grid, a copy of the best configuration's plot.
     shutil.copyfile(plots / "rank01.png", run_dir / "learning_curve.png")
 
